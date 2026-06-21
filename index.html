@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JourneyGraph Copa · CDRView Tensor 3D · Claro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root {
+  --pitch:     #071510;
+  --surface:   #0C1F14;
+  --panel:     #0F2519;
+  --border:    #1A3D24;
+  --gold:      #FFD700;
+  --red:       #FF3D6B;
+  --green:     #00E57A;
+  --blue:      #00C6FF;
+  --purple:    #B06DFF;
+  --orange:    #FF8C00;
+  --highlight: #FFB300;
+  --claro:     #E2001A;
+  --text:      #FFFFFF;
+  --muted:     #9DB8A8;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--pitch); color:var(--text); font-family:'Inter','Segoe UI',system-ui,sans-serif; font-size:13px; height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+/* ── HERO BAR ── */
+.hero {
+  height:52px; background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:0; flex-shrink:0; overflow:hidden; position:relative;
+}
+.hero canvas { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0.6; }
+.hero-overlay {
+  position:relative; z-index:2; display:flex; align-items:center; width:100%; padding:0 14px; gap:14px;
+}
+.match-badge { background:var(--claro); color:#fff; font-weight:900; font-size:11px; padding:3px 9px; border-radius:3px; letter-spacing:.06em; flex-shrink:0; display:flex; align-items:center; gap:6px; }
+.live-dot { width:6px; height:6px; background:#fff; border-radius:50%; animation:blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.match-score { font-size:20px; font-weight:900; color:var(--gold); flex-shrink:0; }
+.match-teams { font-size:13px; font-weight:700; flex-shrink:0; }
+.match-time  { font-size:11px; color:var(--muted); flex-shrink:0; }
+.hero-chips  { margin-left:auto; display:flex; gap:8px; align-items:center; }
+.chip { display:flex; align-items:center; gap:4px; background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:3px 9px; font-size:11px; color:var(--muted); white-space:nowrap; }
+.chip .cv { font-weight:800; font-size:13px; margin-left:2px; }
+.chip .cv.up { color:var(--red); } .chip .cv.dn { color:var(--green); } .chip .cv.nu { color:var(--highlight); }
+
+/* ── TOOLBAR ── */
+.toolbar { display:flex; align-items:center; gap:7px; padding:6px 12px; background:#FFFFFF; border-bottom:2px solid #D0DCE8; flex-shrink:0; flex-wrap:wrap; }
+.tb-label { font-size:10px; color:#4A5568; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+.tb-btn { background:#F0F4F8; border:1.5px solid #B8C8D8; color:#2D3748; padding:4px 11px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:700; transition:all .15s; white-space:nowrap; }
+.tb-btn:hover { background:#E2EDFA; border-color:#1F4E79; color:#1F4E79; }
+.tb-btn.active { background:#1F4E79; border-color:#1F4E79; color:#FFD700; }
+.tb-btn.m-base { border-color:#1B7A3E; color:#1B7A3E; }
+.tb-btn.m-base:hover { background:#F0FFF6; } .tb-btn.m-base.active { background:#1B7A3E; color:#fff; }
+.tb-btn.m-pre  { border-color:#7D6608; color:#7D6608; }
+.tb-btn.m-pre:hover  { background:#FFF9E6; } .tb-btn.m-pre.active  { background:#7D6608; color:#FFD700; }
+.tb-btn.m-live { border-color:#C0392B; color:#C0392B; }
+.tb-btn.m-live:hover { background:#FFF0EE; } .tb-btn.m-live.active { background:#C0392B; color:#fff; }
+.tb-btn.m-post { border-color:#7D3030; color:#7D3030; }
+.tb-btn.m-post:hover { background:#FFF2F2; } .tb-btn.m-post.active { background:#7D3030; color:#fff; }
+.tb-btn.sim { border-color:#B8860B; color:#B8860B; font-weight:800; }
+.tb-btn.sim:hover { background:#FFFBE6; } .tb-btn.sim.running { background:#7D6608; border-color:#7D6608; color:#fff; }
+.tb-sep { width:1px; height:20px; background:#CBD5E0; margin:0 2px; }
+select.tb-sel { background:#F0F4F8; border:1.5px solid #B8C8D8; color:#2D3748; padding:4px 9px; border-radius:4px; font-size:12px; font-weight:600; cursor:pointer; outline:none; }
+select.tb-sel:focus { border-color:#1F4E79; }
+select.tb-sel.multi { min-width:140px; }
+.logo-claro { height:34px; width:auto; margin-left:auto; flex-shrink:0; }
+
+/* ── MAIN ── */
+.main { display:flex; flex:1; overflow:hidden; }
+
+/* ── LEFT ── */
+.left { width:210px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; }
+.lsec { padding:10px 12px; border-bottom:1px solid var(--border); }
+.lsec-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--highlight); margin-bottom:8px; }
+
+/* KPI cards no painel esquerdo */
+.kpi-card { background:var(--panel); border:1px solid var(--border); border-radius:5px; padding:8px 10px; margin-bottom:5px; border-left:3px solid var(--highlight); }
+.kpi-card.red { border-left-color:var(--red); } .kpi-card.green { border-left-color:var(--green); } .kpi-card.blue { border-left-color:var(--blue); }
+.kpi-label { font-size:10px; color:var(--highlight); font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+.kpi-val   { font-size:20px; font-weight:900; color:#fff; line-height:1.1; }
+.kpi-sub   { font-size:10px; color:var(--muted); margin-top:1px; }
+
+/* RAT selector */
+.rat-row { display:flex; gap:4px; margin-bottom:4px; }
+.rat-btn { flex:1; background:var(--panel); border:1.5px solid var(--border); color:var(--muted); padding:4px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:700; text-align:center; transition:all .15s; }
+.rat-btn:hover { border-color:var(--highlight); color:var(--highlight); }
+.rat-btn.active { color:var(--pitch); font-weight:800; }
+
+/* Legenda RG */
+.rg-legend { display:flex; flex-direction:column; gap:3px; }
+.rg-row { display:flex; align-items:center; gap:7px; padding:2px 0; font-size:12px; color:#fff; }
+.rg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.rg-delta { margin-left:auto; font-size:11px; font-weight:800; }
+.rg-delta.up { color:var(--red); } .rg-delta.dn { color:var(--green); } .rg-delta.nu { color:var(--muted); }
+
+/* ── CENTER ── */
+.center { flex:1; position:relative; overflow:hidden; background:var(--pitch); }
+.view { display:none; width:100%; height:100%; }
+.view.active { display:block; }
+.g-label { font-size:11px; fill:#9DB8A8; letter-spacing:.04em; }
+
+/* ── RIGHT ── */
+.right { width:268px; flex-shrink:0; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.rtabs { display:flex; border-bottom:1px solid var(--border); flex-shrink:0; }
+.rtab { flex:1; padding:8px 2px; text-align:center; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; text-transform:uppercase; letter-spacing:.05em; border-bottom:2px solid transparent; transition:all .15s; }
+.rtab:hover { color:#fff; } .rtab.active { color:var(--highlight); border-bottom-color:var(--highlight); }
+.rcontent { flex:1; overflow-y:auto; padding:11px 12px; }
+.icard { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:11px; margin-bottom:8px; border-left:3px solid var(--highlight); }
+.icard.red { border-left-color:var(--red); } .icard.green { border-left-color:var(--green); } .icard.blue { border-left-color:var(--blue); } .icard.purple { border-left-color:var(--purple); }
+.ic-label { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--highlight); margin-bottom:3px; }
+.ic-title { font-size:13px; font-weight:700; color:#fff; line-height:1.3; margin-bottom:4px; }
+.ic-body  { font-size:12px; color:var(--muted); line-height:1.5; }
+.ic-body strong { color:var(--highlight); }
+
+/* Tabs de indicador */
+.ind-tabs { display:flex; gap:3px; flex-wrap:wrap; margin-bottom:8px; }
+.ind-tab { background:var(--panel); border:1px solid var(--border); border-radius:3px; padding:3px 7px; font-size:10px; font-weight:700; color:var(--muted); cursor:pointer; transition:all .12s; }
+.ind-tab:hover { border-color:var(--highlight); color:var(--highlight); }
+.ind-tab.active { background:var(--highlight); border-color:var(--highlight); color:#000; }
+
+/* Série temporal no right */
+.mini-chart svg { width:100%; height:80px; }
+
+/* Timeline swimlane */
+.tl-hours { display:flex; margin-left:58px; margin-bottom:3px; font-size:9px; color:var(--muted); }
+.tl-row { display:flex; align-items:center; margin-bottom:5px; height:20px; }
+.tl-lbl { width:54px; font-size:11px; color:#fff; font-weight:600; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tl-track { flex:1; position:relative; height:14px; background:var(--panel); border-radius:2px; overflow:hidden; }
+.tl-seg { position:absolute; top:0; height:100%; border-radius:2px; opacity:.85; cursor:pointer; }
+.tl-seg.anomaly { opacity:1; box-shadow:0 0 6px currentColor; }
+
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+#tt { position:fixed; background:#0C1F14EE; border:1px solid var(--highlight); border-radius:6px; padding:9px 11px; font-size:12px; color:#fff; pointer-events:none; z-index:999; max-width:210px; display:none; line-height:1.6; backdrop-filter:blur(8px); }
+#tt .tt-t { font-size:13px; font-weight:700; margin-bottom:3px; color:var(--highlight); }
+
+/* LOAD SCREEN */
+#load-screen { position:fixed; inset:0; background:var(--pitch); z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+#load-screen h2 { color:var(--gold); font-size:22px; }
+#load-screen p  { color:var(--muted); font-size:13px; }
+.load-bar-wrap { width:340px; height:6px; background:var(--panel); border-radius:3px; overflow:hidden; }
+.load-bar { height:100%; background:var(--gold); border-radius:3px; width:0%; transition:width .3s; }
+#drop-zone { border:2px dashed var(--border); border-radius:10px; padding:28px 40px; text-align:center; cursor:pointer; transition:all .2s; }
+#drop-zone:hover { border-color:var(--highlight); }
+#drop-zone p { color:var(--muted); font-size:13px; }
+#drop-zone strong { color:var(--highlight); display:block; font-size:15px; margin-bottom:6px; }
+#file-input { display:none; }
+.load-or { color:var(--muted); font-size:12px; }
+.load-demo-btn { background:var(--panel); border:1.5px solid var(--highlight); color:var(--highlight); padding:8px 22px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700; transition:all .15s; }
+.load-demo-btn:hover { background:var(--highlight); color:var(--pitch); }
+
+/* ── FILTRO DE NÓS — SLIDER DUPLO ── */
+.node-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #F0F4F8;
+  border: 1.5px solid #B8C8D8;
+  border-radius: 5px;
+  padding: 3px 10px;
+  min-width: 230px;
+}
+.node-filter-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4A5568;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.node-filter-vals {
+  font-size: 11px;
+  font-weight: 800;
+  color: #1F4E79;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 68px;
+  text-align: right;
+}
+.slider-wrap {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  min-width: 80px;
+}
+.slider-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #CBD5E0;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+.slider-range {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  background: #1F4E79;
+  border-radius: 2px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.slider-input {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  pointer-events: none;
+  outline: none;
+  margin: 0;
+}
+.slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1F4E79;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  pointer-events: all;
+  cursor: pointer;
+  transition: transform .1s;
+}
+.slider-input::-webkit-slider-thumb:hover { transform: scale(1.2); background: #FFD700; border-color: #1F4E79; }
+.slider-input::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #1F4E79; border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  pointer-events: all; cursor: pointer;
+}
+.filter-count {
+  font-size: 10px;
+  color: #1B7A3E;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.filter-count.warn { color: #C0392B; }
+.filter-reset {
+  background: none;
+  border: 1px solid #B8C8D8;
+  border-radius: 3px;
+  color: #4A5568;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all .12s;
+}
+.filter-reset:hover { background: #E2EDFA; border-color: #1F4E79; color: #1F4E79; }
+</style>
+</head>
+<body>
+
+<!-- LOAD SCREEN -->
+<div id="load-screen">
+  <h2>JourneyGraph Copa · CDRView Tensor 3D</h2>
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <strong>📂 Carregar tensor_cdrview_output.json</strong>
+    <p>Arraste o arquivo aqui ou clique para selecionar</p>
+    <p style="font-size:11px;margin-top:6px">Gerado pelo pipeline_tensor_cdrview.py</p>
+  </div>
+  <input type="file" id="file-input" accept=".json">
+  <div class="load-or">— ou —</div>
+  <button class="load-demo-btn" onclick="loadSyntheticDemo()">⚡ Carregar Dataset Sintético (Demo)</button>
+  <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
+  <p id="load-msg" style="color:var(--muted);font-size:12px">Aguardando arquivo...</p>
+</div>
+
+<!-- HERO BAR -->
+<div class="hero" id="hero-bar" style="display:none">
+  <canvas id="pulse-canvas"></canvas>
+  <div class="hero-overlay">
+    <div class="match-badge"><div class="live-dot"></div><span id="hero-mode-lbl">AO VIVO</span></div>
+    <div class="match-teams" id="hero-teams">🇧🇷 Brasil × Argentina 🇦🇷</div>
+    <div class="match-score" id="hero-score">2 — 1</div>
+    <div class="match-time" id="hero-time">73' · Quartas de Final · Copa do Mundo 2026</div>
+    <div class="hero-chips">
+      <div class="chip">Streaming<span class="cv up" id="chip-stream">—</span></div>
+      <div class="chip">Gaming<span class="cv dn" id="chip-gaming">—</span></div>
+      <div class="chip">Social<span class="cv up" id="chip-social">—</span></div>
+      <div class="chip">QoE 4G<span class="cv dn" id="chip-qoe">—</span></div>
+      <div class="chip">Anomalia<span class="cv nu" id="chip-sigma">—</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar" id="toolbar" style="display:none">
+  <span class="tb-label">Visão:</span>
+  <button class="tb-btn active" onclick="setView('graph',this)">Dígrafo Δ</button>
+  <button class="tb-btn" onclick="setView('overlay',this)">Sobreposição</button>
+  <button class="tb-btn" onclick="setView('timeline',this)">Timeline</button>
+  <button class="tb-btn" onclick="setView('anomaly',this)">Série σ</button>
+  <button class="tb-btn" onclick="setView('rat',this)">4G vs 5G</button>
+  <div class="tb-sep"></div>
+  <span class="tb-label">Cidade:</span>
+  <select class="tb-sel multi" id="cidade-sel" multiple size="1" onchange="onCidadeChange()"></select>
+  <div class="tb-sep"></div>
+  <span class="tb-label">Momento:</span>
+  <button class="tb-btn m-base" onclick="setMoment('base',this)">Baseline</button>
+  <button class="tb-btn m-pre"  onclick="setMoment('pre',this)">Pré-jogo</button>
+  <button class="tb-btn m-live active" onclick="setMoment('live',this)">🔴 Ao vivo</button>
+  <button class="tb-btn m-post" onclick="setMoment('post',this)">Pós-gol</button>
+  <div class="tb-sep"></div>
+  <span class="tb-label">Indicador:</span>
+  <select class="tb-sel" id="ind-sel" onchange="setIndicador(this.value)">
+    <option value="vol_dl_gb">Vol. DL (GB/h)</option>
+    <option value="vol_ul_gb">Vol. UL (GB/h)</option>
+    <option value="n_assinantes">Assinantes</option>
+    <option value="n_sessoes">Sessões</option>
+    <option value="qoe_score">QoE Score</option>
+    <option value="taxa_erro_pct">Taxa Erro %</option>
+  </select>
+  <div class="tb-sep"></div>
+  <!-- FILTRO DE NÓS POR ASSINANTES -->
+  <div class="node-filter" id="node-filter-wrap">
+    <span class="node-filter-label">Nós</span>
+    <div class="slider-wrap" id="slider-wrap">
+      <div class="slider-track"></div>
+      <div class="slider-range" id="slider-range"></div>
+      <input type="range" class="slider-input" id="slider-min" min="0" max="100" value="0" step="1"
+        oninput="onSliderMin(this.value)">
+      <input type="range" class="slider-input" id="slider-max" min="0" max="100" value="100" step="1"
+        oninput="onSliderMax(this.value)">
+    </div>
+    <span class="node-filter-vals" id="filter-vals">Todos</span>
+    <span class="filter-count" id="filter-count">10 RGs</span>
+    <button class="filter-reset" onclick="resetNodeFilter()" title="Resetar filtro">✕</button>
+  </div>
+  <div class="tb-sep"></div>
+  <button class="tb-btn sim" id="sim-btn" onclick="toggleSim()">⏵ Simular jogo</button>
+  <img id="claro-logo" class="logo-claro" src="" alt="Claro" style="display:none">
+</div>
+
+<!-- MAIN -->
+<div class="main" id="main-area" style="display:none">
+  <!-- LEFT -->
+  <div class="left">
+    <div class="lsec">
+      <div class="lsec-title">KPIs Evento</div>
+      <div id="kpi-list"></div>
+    </div>
+    <div class="lsec">
+      <div class="lsec-title">RAT Tipo</div>
+      <div class="rat-row" id="rat-btns"></div>
+    </div>
+    <div class="lsec">
+      <div class="lsec-title">RGs — Δ vs. Baseline</div>
+      <div class="rg-legend" id="rg-legend"></div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center" id="center-panel">
+    <div class="view active" id="view-graph"><svg id="graph-svg" style="width:100%;height:100%"></svg></div>
+    <div class="view" id="view-overlay"><svg id="overlay-svg" style="width:100%;height:100%"></svg></div>
+    <div class="view" id="view-timeline" style="padding:14px;overflow-y:auto;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Atividade por RG — dia do jogo vs. baseline · RAT selecionado</div>
+      <div id="tl-wrap"></div>
+    </div>
+    <div class="view" id="view-anomaly"><svg id="anom-svg" style="width:100%;height:100%"></svg></div>
+    <div class="view" id="view-rat"><svg id="rat-svg" style="width:100%;height:100%"></svg></div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="rtabs">
+      <div class="rtab active" onclick="setRTab(this,'insights')">Insights</div>
+      <div class="rtab" onclick="setRTab(this,'tensor')">Tensor</div>
+      <div class="rtab" onclick="setRTab(this,'qos')">QoS/Rede</div>
+    </div>
+    <div class="rcontent" id="rcontent"></div>
+  </div>
+</div>
+
+<div id="tt"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════════════════
+let TENSOR = null;          // JSON completo do pipeline
+let curCidades = [];        // cidades selecionadas
+let curRat = 'ALL';         // RAT filter: ALL | 4G | 5G_NSA | 5G_SA
+let curMoment = 'live';     // base | pre | live | post
+let curView = 'graph';
+let curRTab = 'insights';
+let curIndicador = 'vol_dl_gb';
+let simRunning = false;
+let simTimer = null;
+let simPhase = 0;
+
+// ── Filtro de nós por assinantes ──────────────────────────────────────────
+let nodeFilterMin = 0;      // percentil 0–100 do slider mínimo
+let nodeFilterMax = 100;    // percentil 0–100 do slider máximo
+let nodeAssMin = 0;         // valor absoluto de assinantes mínimo
+let nodeAssMax = Infinity;  // valor absoluto de assinantes máximo
+let nodeAssRange = [0, 0];  // [min global, max global] calculado ao carregar
+
+// Hora de referência por momento
+const MOMENT_HORA = { base:20, pre:18, live:21, post:22 };
+const MOMENT_LABELS = { base:'Baseline', pre:'Pré-jogo (18h)', live:'Ao vivo (21h)', post:'Pós-gol (22h)' };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOAD
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  loadProgress(10, 'Lendo arquivo...');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    loadProgress(40, 'Parseando JSON...');
+    try {
+      TENSOR = JSON.parse(ev.target.result);
+      loadProgress(80, 'Inicializando aplicação...');
+      setTimeout(() => initApp(), 200);
+    } catch(err) {
+      document.getElementById('load-msg').textContent = '❌ Erro ao ler JSON: ' + err.message;
+    }
+  };
+  reader.readAsText(file);
+});
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor='var(--highlight)'; });
+dz.addEventListener('dragleave', () => { dz.style.borderColor='var(--border)'; });
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    loadProgress(10,'Lendo...');
+    const r = new FileReader();
+    r.onload = ev => { TENSOR = JSON.parse(ev.target.result); loadProgress(80,'OK'); setTimeout(initApp,200); };
+    r.readAsText(file);
+  }
+});
+
+function loadProgress(pct, msg) {
+  document.getElementById('load-bar').style.width = pct + '%';
+  document.getElementById('load-msg').textContent = msg;
+}
+
+// ─── DEMO SINTÉTICO INLINE ───────────────────────────────────────────────────
+function loadSyntheticDemo() {
+  loadProgress(20, 'Gerando dataset sintético...');
+  setTimeout(() => {
+    TENSOR = buildSyntheticTensor();
+    loadProgress(90, 'Inicializando...');
+    setTimeout(initApp, 100);
+  }, 50);
+}
+
+function buildSyntheticTensor() {
+  // Dataset sintético compacto inline — baseado nos parâmetros do pipeline
+  const rg_meta = {
+    RG01:{ nome:'Streaming Vídeo',  cor:'#FF6B6B', rgt:1,  peso_copa:2.87, vol_dl_base:42, vol_ul_base:2.1  },
+    RG02:{ nome:'Redes Sociais',    cor:'#4ECDC4', rgt:2,  peso_copa:2.42, vol_dl_base:28, vol_ul_base:4.2  },
+    RG03:{ nome:'Gaming UDP',       cor:'#9B6DFF', rgt:3,  peso_copa:0.36, vol_dl_base:18, vol_ul_base:3.6  },
+    RG04:{ nome:'Videoconferência', cor:'#00C6FF', rgt:4,  peso_copa:0.25, vol_dl_base:12, vol_ul_base:4.8  },
+    RG05:{ nome:'Work Cloud',       cor:'#00E57A', rgt:5,  peso_copa:0.22, vol_dl_base:15, vol_ul_base:5.1  },
+    RG06:{ nome:'Música/Áudio',     cor:'#FFD700', rgt:6,  peso_copa:1.75, vol_dl_base:8,  vol_ul_base:0.8  },
+    RG07:{ nome:'Maps/Nav.',        cor:'#FF8C00', rgt:7,  peso_copa:0.80, vol_dl_base:10, vol_ul_base:1.0  },
+    RG08:{ nome:'News/Portais',     cor:'#A8C4D4', rgt:8,  peso_copa:8.67, vol_dl_base:6,  vol_ul_base:0.6  },
+    RG09:{ nome:'Mensageria',       cor:'#7FBA00', rgt:9,  peso_copa:3.44, vol_dl_base:9,  vol_ul_base:1.8  },
+    RG10:{ nome:'Outros Dados',     cor:'#3A5A4A', rgt:10, peso_copa:0.60, vol_dl_base:5,  vol_ul_base:0.5  },
+  };
+  const rat_meta = {
+    '4G'    :{ nome:'4G LTE',   cor:'#4ECDC4', latencia_ms:35, penetracao_pct:62, qoe_degradacao_copa:0.18 },
+    '5G_NSA':{ nome:'5G NSA',   cor:'#00C6FF', latencia_ms:18, penetracao_pct:28, qoe_degradacao_copa:0.08 },
+    '5G_SA' :{ nome:'5G SA',    cor:'#FFD700', latencia_ms:6,  penetracao_pct:10, qoe_degradacao_copa:0.02 },
+  };
+  const cidades_cfg = {
+    SP: { nome:'São Paulo Capital', uf:'SP', fator_copa:1.00, base_4g:3200000, base_5g_nsa:1100000, base_5g_sa:280000 },
+    RJ: { nome:'Rio de Janeiro',    uf:'RJ', fator_copa:1.14, base_4g:1950000, base_5g_nsa:680000,  base_5g_sa:190000 },
+    BSB:{ nome:'Brasília / DF',     uf:'DF', fator_copa:0.82, base_4g:820000,  base_5g_nsa:310000,  base_5g_sa:95000  },
+    NE: { nome:'Nordeste Agregado', uf:'NE', fator_copa:1.21, base_4g:1600000, base_5g_nsa:490000,  base_5g_sa:88000  },
+    SUL:{ nome:'Sul Agregado',      uf:'RS', fator_copa:0.94, base_4g:1100000, base_5g_nsa:380000,  base_5g_sa:72000  },
+  };
+
+  const rg_ids = Object.keys(rg_meta);
+  const rat_ids = ['4G','5G_NSA','5G_SA'];
+  const indicadores = ['n_assinantes','n_sessoes','vol_dl_gb','vol_ul_gb','duracao_media_min','qoe_score','taxa_erro_pct'];
+  const combos = [];
+  rg_ids.forEach(rg => rat_ids.forEach(rat => combos.push({ rg, rat, key:`${rg}_${rat.replace('_','')}` })));
+
+  // Pesos temporais baseline por RG
+  const hw = (h, rg) => {
+    const p = (a,b) => h>=a && h<=b;
+    if(rg==='RG01') return p(20,22)?1.85:p(18,19)?1.20:p(0,5)?0.20:p(6,8)?0.40:0.70;
+    if(rg==='RG02') return p(18,22)?1.40:p(0,5)?0.15:p(6,7)?0.55:0.95;
+    if(rg==='RG03') return p(22,23)||p(0,2)?1.60:p(3,8)?0.10:p(19,21)?1.30:0.40;
+    if(rg==='RG04'||rg==='RG05') return p(8,12)?1.20:p(14,17)?1.10:p(0,7)?0.05:0.30;
+    if(rg==='RG06') return p(6,9)?1.30:p(17,19)?1.20:p(0,5)?0.20:0.80;
+    if(rg==='RG07') return p(6,9)?1.60:p(17,19)?1.50:p(0,5)?0.10:0.70;
+    if(rg==='RG08') return p(6,9)?1.40:p(12,13)?1.20:p(18,20)?1.30:p(0,5)?0.10:0.80;
+    if(rg==='RG09') return p(0,5)?0.15:0.90+0.20*Math.sin((h-10)*Math.PI/13);
+    return 0.5;
+  };
+
+  // Multiplicador copa
+  const copaMult = (h, rg, fc) => {
+    const [H0,H1,HG] = [19,22,21];
+    const pre=h>=17&&h<H0, live=h>=H0&&h<H1, gol=h===HG, post=h>=H1&&h<=H1+1;
+    const mults = {
+      RG01:{pre:1.4,live:2.87,gol:3.10,post:2.50},
+      RG02:{pre:1.6,live:2.42,gol:4.10,post:3.20},
+      RG03:{pre:0.7,live:0.36,gol:0.25,post:0.50},
+      RG04:{pre:0.5,live:0.25,gol:0.25,post:0.30},
+      RG05:{pre:0.4,live:0.22,gol:0.22,post:0.25},
+      RG06:{pre:1.0,live:1.75,gol:1.40,post:1.20},
+      RG07:{pre:1.0,live:0.80,gol:0.70,post:0.80},
+      RG08:{pre:3.0,live:2.50,gol:5.00,post:4.67},
+      RG09:{pre:1.5,live:2.20,gol:4.44,post:3.20},
+      RG10:{pre:1.0,live:0.60,gol:0.55,post:0.70},
+    };
+    const m = mults[rg] || {pre:1,live:1,gol:1,post:1};
+    const base = gol?m.gol:post?m.post:live?m.live:pre?m.pre:1.0;
+    return base * fc;
+  };
+
+  const qoeMult = (h, rat) => {
+    const live = h>=19&&h<=22, gol=h===21;
+    if(!live) return 1.0;
+    if(rat==='4G')     return gol?0.72:0.82;
+    if(rat==='5G_NSA') return gol?0.88:0.93;
+    return gol?0.97:0.99;
+  };
+
+  const rnd = (mu,s,lo=0,hi=null) => {
+    let v = mu + s*(Math.random()+Math.random()+Math.random()-1.5)*0.82;
+    v=Math.max(v,lo); if(hi!==null) v=Math.min(v,hi); return v;
+  };
+
+  const N_BASE=7;
+  const output = {
+    meta:{ versao:'1.0-demo', projeto:'JourneyGraph Copa 2026 (Demo)', operadora:'Claro',
+      gerado_em:new Date().toISOString(), n_baseline_dias:N_BASE, n_evento_dias:1,
+      evento_nome:'Brasil × Argentina — Quartas de Final',
+      evento_hora_inicio:19, evento_hora_fim:22, evento_hora_gol:21,
+      indicadores, combos:combos.map(c=>c.key), horas:[...Array(24).keys()],
+      dias_label:[...Array(N_BASE).keys()].map(i=>`baseline_d${i}`).concat(['evento']),
+    },
+    rg_metadata: rg_meta,
+    rat_metadata: rat_meta,
+    cidades: {},
+    thresholds:{
+      vol_dl_gb:{sigma_atencao:1.5,sigma_alerta:2.5,sigma_critico:3.5},
+      vol_ul_gb:{sigma_atencao:1.5,sigma_alerta:2.5,sigma_critico:3.5},
+      n_sessoes:{sigma_atencao:1.5,sigma_alerta:2.5,sigma_critico:3.5},
+      n_assinantes:{sigma_atencao:1.2,sigma_alerta:2.0,sigma_critico:3.0},
+      duracao_media_min:{sigma_atencao:1.0,sigma_alerta:2.0,sigma_critico:3.0},
+      qoe_score:{sigma_atencao:-1.5,sigma_alerta:-2.5,sigma_critico:-3.5},
+      taxa_erro_pct:{sigma_atencao:1.5,sigma_alerta:2.5,sigma_critico:4.0},
+    },
+    transicao:{ rg_ids, baseline:[], copa:[], concomitancia:[
+      {rg_a:'RG01',rg_b:'RG02',freq_baseline:12,freq_copa:40,descricao:'Segunda tela'},
+      {rg_a:'RG01',rg_b:'RG06',freq_baseline:14,freq_copa:22,descricao:'Música+streaming'},
+      {rg_a:'RG02',rg_b:'RG06',freq_baseline:8, freq_copa:14,descricao:'Música+social'},
+    ]},
+    indicadores_display:{
+      vol_dl_gb:{label_curto:'Vol. DL',unidade:'GB/h',cor_positivo:'#FF3D6B'},
+      vol_ul_gb:{label_curto:'Vol. UL',unidade:'GB/h',cor_positivo:'#FFB300'},
+      n_assinantes:{label_curto:'Assin.',unidade:'unid',cor_positivo:'#00E57A'},
+      n_sessoes:{label_curto:'Sessões',unidade:'unid',cor_positivo:'#00E57A'},
+      duracao_media_min:{label_curto:'Duração',unidade:'min',cor_positivo:'#00C6FF'},
+      qoe_score:{label_curto:'QoE',unidade:'pts',cor_positivo:'#00E57A'},
+      taxa_erro_pct:{label_curto:'Erros',unidade:'%',cor_positivo:'#FF3D6B'},
+    },
+  };
+
+  // Gerar tensor por cidade
+  Object.entries(cidades_cfg).forEach(([cid, cc]) => {
+    const pen = {'4G':0.62,'5G_NSA':0.28,'5G_SA':0.10};
+    const baseAss = {'4G':cc.base_4g,'5G_NSA':cc.base_5g_nsa,'5G_SA':cc.base_5g_sa};
+    const tensor_c = {};
+
+    combos.forEach(({rg, rat, key}) => {
+      const rgc = rg_meta[rg];
+      const vdlb = rgc.vol_dl_base * pen[rat];
+      const vulb = rgc.vol_ul_base * pen[rat];
+      const bassN = baseAss[rat];
+      const dias = [];
+
+      for(let dia=0; dia<N_BASE+1; dia++) {
+        const isEvt = dia===N_BASE;
+        const dowM = (!isEvt&&dia%7<=4&&(rg==='RG04'||rg==='RG05'))?1.15:
+                     (!isEvt&&dia%7>4 &&(rg==='RG01'||rg==='RG03'))?1.15:1.0;
+        const hrs = [];
+        for(let h=0; h<24; h++) {
+          const hwv = hw(h,rg);
+          const cm = isEvt ? copaMult(h,rg,cc.fator_copa) : 1.0;
+          const qm = isEvt ? qoeMult(h,rat) : 1.0;
+          const vdl_mu = vdlb*hwv*dowM*cm;
+          const vul_mu = vulb*hwv*dowM*cm;
+          const ass_mu = bassN*pen[rat]*hwv*dowM*cm*0.12;
+          const sess_pp = rnd(2.3,0.25,1);
+          const durMu = rg==='RG01'?(isEvt?110:82):rg==='RG03'?(isEvt?30:65):rg==='RG04'?48:22;
+          const qoeBase = rat==='4G'?85:rat==='5G_NSA'?90:94;
+          hrs.push({
+            n_assinantes:    Math.max(1,Math.round(rnd(ass_mu,ass_mu*0.06,1))),
+            n_sessoes:       Math.max(1,Math.round(rnd(ass_mu*sess_pp,ass_mu*0.08,1))),
+            vol_dl_gb:       Math.max(0,parseFloat(rnd(vdl_mu,vdl_mu*0.08,0).toFixed(2))),
+            vol_ul_gb:       Math.max(0,parseFloat(rnd(vul_mu,vul_mu*0.10,0).toFixed(3))),
+            duracao_media_min:Math.max(1,parseFloat(rnd(durMu*hwv,durMu*0.12,1).toFixed(1))),
+            qoe_score:       parseFloat(Math.min(100,Math.max(20,rnd(qoeBase*qm,3.5,20,100))).toFixed(1)),
+            taxa_erro_pct:   parseFloat(Math.max(0,rnd((rat==='4G'?0.8:rat==='5G_NSA'?0.4:0.2)*(1+(1-qm)*8),0.1,0,25)).toFixed(3)),
+          });
+        }
+        dias.push(hrs);
+      }
+      tensor_c[key] = dias;
+    });
+
+    // Baseline stats
+    const bstats = {};
+    combos.forEach(({key}) => {
+      bstats[key]={};
+      for(let h=0;h<24;h++) {
+        bstats[key][h]={};
+        indicadores.forEach(ind => {
+          const vals=[...Array(N_BASE).keys()].map(d=>tensor_c[key][d][h][ind]||0);
+          const mu=vals.reduce((a,b)=>a+b,0)/vals.length;
+          const sigma=Math.sqrt(vals.reduce((a,b)=>a+(b-mu)**2,0)/vals.length)||0.001;
+          bstats[key][h][ind]={mu:parseFloat(mu.toFixed(4)),sigma:parseFloat(Math.max(sigma,0.001).toFixed(4))};
+        });
+      }
+    });
+
+    // Evento deltas
+    const edeltas={};
+    combos.forEach(({key}) => {
+      edeltas[key]={};
+      for(let h=0;h<24;h++) {
+        edeltas[key][h]={};
+        const cell=tensor_c[key][N_BASE][h];
+        indicadores.forEach(ind => {
+          const {mu,sigma}=bstats[key][h][ind];
+          const val=cell[ind]||0;
+          edeltas[key][h][ind]={
+            valor:val, baseline_mu:mu,
+            delta_pct:parseFloat(mu>0?((val-mu)/mu*100):0).toFixed(2),
+            sigma:parseFloat(sigma>0?(val-mu)/sigma:0).toFixed(3),
+          };
+        });
+      }
+    });
+
+    output.cidades[cid]={ cidade_id:cid, nome:cc.nome, uf:cc.uf, fator_copa:cc.fator_copa,
+      tensor:tensor_c, baseline_stats:bstats, evento_deltas:edeltas };
+  });
+
+  return output;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT APP
+// ═══════════════════════════════════════════════════════════════════════════
+function initApp() {
+  loadProgress(100,'Pronto!');
+  setTimeout(() => {
+    document.getElementById('load-screen').style.display='none';
+    document.getElementById('hero-bar').style.display='flex';
+    document.getElementById('toolbar').style.display='flex';
+    document.getElementById('main-area').style.display='flex';
+  }, 300);
+
+  // Popular seletor de cidades
+  const sel = document.getElementById('cidade-sel');
+  sel.innerHTML='';
+  Object.entries(TENSOR.cidades).forEach(([id,c]) => {
+    const opt=document.createElement('option');
+    opt.value=id; opt.textContent=`${c.nome} (${c.uf})`;
+    sel.appendChild(opt);
+  });
+  // Selecionar primeira
+  curCidades=[Object.keys(TENSOR.cidades)[0]];
+  sel.value=curCidades[0];
+
+  // Logo Claro
+  fetch('/mnt/user-data/uploads/208580bf8cd50b13752fe36a6b2c2d61dc7d653d.jpeg')
+    .catch(()=>null);
+
+  buildRatButtons();
+  updateHeroChips();
+  renderPulseBar();
+  renderKpis();
+  renderRGLegend();
+  computeNodeAssRange();   // calcular range global de assinantes
+  renderGraph();
+  renderRight();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILTRO DE NÓS — SLIDER DUPLO
+// ═══════════════════════════════════════════════════════════════════════════
+
+function computeNodeAssRange() {
+  // Calcula o range global de n_assinantes em todos os combos × hora do evento
+  const cidade = getCidadeMerged();
+  if (!cidade) return;
+  const combos = TENSOR.meta.combos;
+  const N_BASE = TENSOR.meta.n_baseline_dias;
+  const hora   = MOMENT_HORA[curMoment];
+  let vals = [];
+
+  combos.forEach(key => {
+    // Somar assinantes por RG (agregando todos os RATs do key)
+    const v = cidade.evento_deltas?.[key]?.[hora]?.n_assinantes?.valor ||
+              cidade.baseline_stats?.[key]?.[hora]?.n_assinantes?.mu || 0;
+    vals.push(v);
+  });
+
+  // Agregar por RG (somar RATs)
+  const rg_ids = Object.keys(TENSOR.rg_metadata);
+  const rgTotals = rg_ids.map(rg => {
+    const c = combos.filter(k => k.startsWith(rg + '_'));
+    return c.reduce((s, key) => {
+      return s + (cidade.evento_deltas?.[key]?.[hora]?.n_assinantes?.valor ||
+                  cidade.baseline_stats?.[key]?.[hora]?.n_assinantes?.mu || 0);
+    }, 0);
+  }).filter(v => v > 0);
+
+  nodeAssRange = [
+    Math.floor(Math.min(...rgTotals, 0)),
+    Math.ceil(Math.max(...rgTotals, 1))
+  ];
+
+  // Resetar sliders para range completo
+  nodeAssMin = nodeAssRange[0];
+  nodeAssMax = nodeAssRange[1];
+  nodeFilterMin = 0;
+  nodeFilterMax = 100;
+
+  updateSliderUI();
+}
+
+function onSliderMin(val) {
+  val = parseInt(val);
+  const maxVal = parseInt(document.getElementById('slider-max').value);
+  if (val >= maxVal - 2) {
+    val = maxVal - 2;
+    document.getElementById('slider-min').value = val;
+  }
+  nodeFilterMin = val;
+  updateNodeFilterValues();
+}
+
+function onSliderMax(val) {
+  val = parseInt(val);
+  const minVal = parseInt(document.getElementById('slider-min').value);
+  if (val <= minVal + 2) {
+    val = minVal + 2;
+    document.getElementById('slider-max').value = val;
+  }
+  nodeFilterMax = val;
+  updateNodeFilterValues();
+}
+
+function updateNodeFilterValues() {
+  const [rMin, rMax] = nodeAssRange;
+  const span = rMax - rMin;
+  nodeAssMin = rMin + (nodeFilterMin / 100) * span;
+  nodeAssMax = rMin + (nodeFilterMax / 100) * span;
+  updateSliderUI();
+  renderGraph();   // redesenhar dígrafo com filtro aplicado
+  renderRGLegend();
+}
+
+function updateSliderUI() {
+  const minPct = nodeFilterMin;
+  const maxPct = nodeFilterMax;
+
+  // Atualizar barra de range colorida
+  const range = document.getElementById('slider-range');
+  if (range) {
+    range.style.left  = minPct + '%';
+    range.style.width = (maxPct - minPct) + '%';
+  }
+
+  // Texto de valores
+  const vEl = document.getElementById('filter-vals');
+  if (vEl) {
+    const fmtK = v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v.toFixed(0);
+    if (nodeFilterMin === 0 && nodeFilterMax === 100) {
+      vEl.textContent = 'Todos';
+    } else {
+      vEl.textContent = `${fmtK(nodeAssMin)}–${fmtK(nodeAssMax)}`;
+    }
+  }
+
+  // Contagem de RGs visíveis
+  updateFilterCount();
+}
+
+function updateFilterCount() {
+  const cidade = getCidadeMerged();
+  if (!cidade) return;
+  const rg_ids = Object.keys(TENSOR.rg_metadata);
+  const combos = TENSOR.meta.combos;
+  const hora   = MOMENT_HORA[curMoment];
+
+  let visible = 0;
+  rg_ids.forEach(rg => {
+    const c = combos.filter(k => k.startsWith(rg + '_') &&
+              (curRat === 'ALL' || k.includes(curRat.replace('_',''))));
+    const total = c.reduce((s, key) => s + (
+      cidade.evento_deltas?.[key]?.[hora]?.n_assinantes?.valor ||
+      cidade.baseline_stats?.[key]?.[hora]?.n_assinantes?.mu || 0), 0);
+    if (total >= nodeAssMin && total <= nodeAssMax) visible++;
+  });
+
+  const countEl = document.getElementById('filter-count');
+  if (countEl) {
+    countEl.textContent = `${visible} RGs`;
+    countEl.className = 'filter-count' + (visible <= 2 ? ' warn' : '');
+  }
+}
+
+function resetNodeFilter() {
+  nodeFilterMin = 0;
+  nodeFilterMax = 100;
+  document.getElementById('slider-min').value = 0;
+  document.getElementById('slider-max').value = 100;
+  nodeAssMin = nodeAssRange[0];
+  nodeAssMax = nodeAssRange[1];
+  updateSliderUI();
+  renderGraph();
+  renderRGLegend();
+}
+
+function getNodeAssTotal(cidade, rg, hora) {
+  // Retorna total de assinantes para um RG (somando RATs filtrados)
+  const combos = TENSOR.meta.combos.filter(k =>
+    k.startsWith(rg + '_') &&
+    (curRat === 'ALL' || k.includes(curRat.replace('_','')))
+  );
+  return combos.reduce((s, key) => s + (
+    cidade.evento_deltas?.[key]?.[hora]?.n_assinantes?.valor ||
+    cidade.baseline_stats?.[key]?.[hora]?.n_assinantes?.mu || 0
+  ), 0);
+}
+
+function passesNodeFilter(cidade, rg, hora) {
+  // Retorna true se o nó RG passa pelo filtro de assinantes
+  if (nodeFilterMin === 0 && nodeFilterMax === 100) return true;
+  const total = getNodeAssTotal(cidade, rg, hora);
+  return total >= nodeAssMin && total <= nodeAssMax;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS DE DADOS
+// ═══════════════════════════════════════════════════════════════════════════
+function getCidadeMerged() {
+  // Retorna dados mesclados das cidades selecionadas
+  const valid = curCidades.filter(c => TENSOR.cidades[c]);
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return TENSOR.cidades[valid[0]];
+
+  // Múltiplas: criar merged virtual
+  const base = TENSOR.cidades[valid[0]];
+  const merged = {
+    cidade_id:'MERGED', nome:valid.map(c=>TENSOR.cidades[c].nome).join(' + '), uf:'AGG',
+    tensor:{}, baseline_stats:{}, evento_deltas:{},
+  };
+  const combos = TENSOR.meta.combos;
+  const inds = TENSOR.meta.indicadores;
+  const N_BASE = TENSOR.meta.n_baseline_dias;
+  const N_DIAS = N_BASE + 1;
+
+  combos.forEach(key => {
+    merged.tensor[key] = [];
+    for(let dia=0;dia<N_DIAS;dia++) {
+      const hrs=[];
+      for(let h=0;h<24;h++) {
+        const cell={};
+        inds.forEach(ind => {
+          let sum=0, cnt=0;
+          valid.forEach(cid => {
+            const v=TENSOR.cidades[cid].tensor[key]?.[dia]?.[h]?.[ind]||0;
+            if(ind==='qoe_score'||ind==='taxa_erro_pct'||ind==='duracao_media_min') sum+=v;
+            else sum+=v;
+            cnt++;
+          });
+          if(cnt>0 && (ind==='qoe_score'||ind==='taxa_erro_pct'||ind==='duracao_media_min'))
+            cell[ind]=sum/cnt;
+          else cell[ind]=sum;
+        });
+        hrs.push(cell);
+      }
+      merged.tensor[key].push(hrs);
+    }
+    // Recalcular stats
+    merged.baseline_stats[key]={};
+    merged.evento_deltas[key]={};
+    for(let h=0;h<24;h++) {
+      merged.baseline_stats[key][h]={};
+      merged.evento_deltas[key][h]={};
+      inds.forEach(ind => {
+        const vals=[...Array(N_BASE).keys()].map(d=>merged.tensor[key][d][h][ind]||0);
+        const mu=vals.reduce((a,b)=>a+b,0)/vals.length;
+        const sigma=Math.sqrt(vals.reduce((a,b)=>a+(b-mu)**2,0)/vals.length)||0.001;
+        merged.baseline_stats[key][h][ind]={mu,sigma:Math.max(sigma,0.001)};
+        const val=merged.tensor[key][N_BASE][h][ind]||0;
+        merged.evento_deltas[key][h][ind]={
+          valor:val, baseline_mu:mu,
+          delta_pct:mu>0?(val-mu)/mu*100:0,
+          sigma:sigma>0?(val-mu)/sigma:0,
+        };
+      });
+    }
+  });
+  return merged;
+}
+
+function getActiveCombos() {
+  // Filtra combos pelo RAT selecionado
+  return TENSOR.meta.combos.filter(key =>
+    curRat === 'ALL' || key.includes(curRat.replace('_',''))
+  );
+}
+
+function getRGsFromCombos(combos) {
+  const rgs = new Set();
+  combos.forEach(key => {
+    const rg = key.split('_')[0]+'_'+key.split('_')[1];
+    // key formato: RG01_4G ou RG01_5GNSA ou RG01_5GSA
+    const rgId = key.match(/^(RG\d+)/)?.[1];
+    if(rgId) rgs.add(rgId);
+  });
+  return [...rgs];
+}
+
+function getHoraEvento() {
+  const h_inicio = TENSOR.meta.evento_hora_inicio || 19;
+  const h_fim    = TENSOR.meta.evento_hora_fim    || 22;
+  const h_gol    = TENSOR.meta.evento_hora_gol    || 21;
+  const hora = MOMENT_HORA[curMoment];
+  return { hora, h_inicio, h_fim, h_gol };
+}
+
+function getValueAtHora(cidade, key, hora, indicador, tipo='evento') {
+  if(tipo==='evento') {
+    return cidade.evento_deltas?.[key]?.[hora]?.[indicador]?.valor || 0;
+  } else {
+    return cidade.baseline_stats?.[key]?.[hora]?.[indicador]?.mu || 0;
+  }
+}
+
+function getDeltaSigma(cidade, key, hora, indicador) {
+  const d = cidade.evento_deltas?.[key]?.[hora]?.[indicador];
+  if(!d) return {delta_pct:0,sigma:0,valor:0,baseline_mu:0};
+  return {
+    delta_pct: parseFloat(d.delta_pct),
+    sigma:     parseFloat(d.sigma),
+    valor:     parseFloat(d.valor),
+    baseline_mu: parseFloat(d.baseline_mu),
+  };
+}
+
+function getGlobalSigma(cidade) {
+  // Sigma médio ponderado dos RGs de streaming e social na hora do evento
+  const {hora} = getHoraEvento();
+  const combos = getActiveCombos();
+  let sigmas = [];
+  combos.forEach(key => {
+    const d = getDeltaSigma(cidade, key, hora, curIndicador);
+    sigmas.push(Math.abs(d.sigma));
+  });
+  return sigmas.length ? (sigmas.reduce((a,b)=>a+b,0)/sigmas.length).toFixed(1) : '0.0';
+}
+
+function sigmaToClass(s) {
+  const a=Math.abs(s);
+  return a>=3.5?'hi':a>=2?'med':'lo';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HERO BAR
+// ═══════════════════════════════════════════════════════════════════════════
+function renderPulseBar() {
+  const canvas = document.getElementById('pulse-canvas');
+  const W = canvas.parentElement.offsetWidth, H=52;
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0,'#071510'); grad.addColorStop(0.7,'#0A1A0E');
+  grad.addColorStop(0.88,'#1A0A0A'); grad.addColorStop(1,'#2A0808');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  const serie=[0.2,0.1,0.4,0.8,1.2,1.8,2.4,3.1,3.8,4.2,4.9,3.2].map((s,i)=>({h:i*2,sigma:s}));
+  ctx.beginPath();
+  serie.forEach((p,i) => {
+    const x=(p.h/23)*W, y=H-(p.sigma/5.5)*H*0.85-2;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle='#FF3D6B88'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath();
+  ctx.fillStyle='#FF3D6B18'; ctx.fill();
+
+  const cx=(21/23)*W;
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H);
+  ctx.strokeStyle='#FF3D6B'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+}
+
+function updateHeroChips() {
+  const cidade = getCidadeMerged();
+  if(!cidade) return;
+  const {hora} = getHoraEvento();
+
+  const d01 = getDeltaSigma(cidade,'RG01_4G',hora,'vol_dl_gb');
+  const d02 = getDeltaSigma(cidade,'RG02_4G',hora,'vol_dl_gb');
+  const d03 = getDeltaSigma(cidade,'RG03_4G',hora,'vol_dl_gb');
+  const dQoe= getDeltaSigma(cidade,'RG01_4G',hora,'qoe_score');
+  const sigma=getGlobalSigma(cidade);
+
+  const fmt=v=>(v>0?'+':'')+v.toFixed(0)+'%';
+  document.getElementById('chip-stream').textContent=fmt(d01.delta_pct);
+  document.getElementById('chip-gaming').textContent=fmt(d03.delta_pct);
+  document.getElementById('chip-social').textContent=fmt(d02.delta_pct);
+  document.getElementById('chip-qoe').textContent=fmt(dQoe.delta_pct);
+  document.getElementById('chip-sigma').textContent=sigma+'σ';
+  document.getElementById('hero-time').textContent=
+    `${MOMENT_LABELS[curMoment]} · ${TENSOR.meta.evento_nome||'Copa 2026'}`;
+  document.getElementById('hero-mode-lbl').textContent=
+    curMoment==='base'?'BASELINE':curMoment==='pre'?'PRÉ-JOGO':curMoment==='live'?'AO VIVO':'PÓS-GOL';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEFT PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+function buildRatButtons() {
+  const rats=['ALL','4G','5G_NSA','5G_SA'];
+  const labels={'ALL':'Todos','4G':'4G','5G_NSA':'NSA','5G_SA':'SA'};
+  const colors={'ALL':'#9DB8A8','4G':'#4ECDC4','5G_NSA':'#00C6FF','5G_SA':'#FFD700'};
+  const el=document.getElementById('rat-btns');
+  el.innerHTML=rats.map(r=>`
+    <div class="rat-btn ${r===curRat?'active':''}"
+      style="${r===curRat?`background:${colors[r]};border-color:${colors[r]}`:''}"
+      onclick="setRat('${r}','${colors[r]}')">${labels[r]}</div>
+  `).join('');
+}
+
+function setRat(rat,color) {
+  curRat=rat;
+  document.querySelectorAll('.rat-btn').forEach(b=>{ b.classList.remove('active'); b.style.background=''; b.style.borderColor=''; });
+  event.target.classList.add('active');
+  event.target.style.background=color;
+  event.target.style.borderColor=color;
+  computeNodeAssRange();
+  refreshView();
+  renderRGLegend();
+}
+
+function renderKpis() {
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const {hora}=getHoraEvento();
+  const combos=getActiveCombos();
+
+  // Sumarizar por RG (soma dos RATs selecionados)
+  let totalDL=0,totalUL=0,totalAss=0,sumQoe=0,nQoe=0;
+  combos.forEach(key=>{
+    if(curMoment==='base'){
+      totalDL +=cidade.baseline_stats?.[key]?.[hora]?.vol_dl_gb?.mu||0;
+      totalUL +=cidade.baseline_stats?.[key]?.[hora]?.vol_ul_gb?.mu||0;
+      totalAss+=cidade.baseline_stats?.[key]?.[hora]?.n_assinantes?.mu||0;
+      sumQoe  +=cidade.baseline_stats?.[key]?.[hora]?.qoe_score?.mu||0;
+    } else {
+      totalDL +=cidade.evento_deltas?.[key]?.[hora]?.vol_dl_gb?.valor||0;
+      totalUL +=cidade.evento_deltas?.[key]?.[hora]?.vol_ul_gb?.valor||0;
+      totalAss+=cidade.evento_deltas?.[key]?.[hora]?.n_assinantes?.valor||0;
+      sumQoe  +=cidade.evento_deltas?.[key]?.[hora]?.qoe_score?.valor||0;
+    }
+    nQoe++;
+  });
+  const qoeAvg=nQoe>0?sumQoe/nQoe:0;
+  const sigma=getGlobalSigma(cidade);
+
+  const el=document.getElementById('kpi-list');
+  el.innerHTML=`
+    <div class="kpi-card red"><div class="kpi-label">Vol. Downstream</div><div class="kpi-val">${totalDL.toFixed(0)}</div><div class="kpi-sub">GB/hora</div></div>
+    <div class="kpi-card"><div class="kpi-label">Vol. Upstream</div><div class="kpi-val">${totalUL.toFixed(0)}</div><div class="kpi-sub">GB/hora</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Assinantes Ativos</div><div class="kpi-val">${(totalAss/1000).toFixed(0)}k</div><div class="kpi-sub">estimativa</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">QoE Médio</div><div class="kpi-val">${qoeAvg.toFixed(1)}</div><div class="kpi-sub">score 0–100</div></div>
+    <div class="kpi-card ${parseFloat(sigma)>=3.5?'red':parseFloat(sigma)>=2?'':'green'}">
+      <div class="kpi-label">Anomalia</div><div class="kpi-val">${sigma}σ</div>
+      <div class="kpi-sub">${parseFloat(sigma)>=3.5?'Crítico':parseFloat(sigma)>=2?'Alerta':'Normal'}</div>
+    </div>
+  `;
+}
+
+function renderRGLegend() {
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const {hora}=getHoraEvento();
+  const rg_meta=TENSOR.rg_metadata;
+  const el=document.getElementById('rg-legend');
+  const rg_ids=Object.keys(rg_meta);
+
+  el.innerHTML=rg_ids.map(rg=>{
+    // Soma delta_pct sobre RATs ativos para este RG
+    const combos=getActiveCombos().filter(k=>k.startsWith(rg+'_'));
+    if(combos.length===0) return '';
+    let sumDl=0,sumBl=0;
+    combos.forEach(key=>{
+      const d=getDeltaSigma(cidade,key,hora,'vol_dl_gb');
+      sumDl+=d.valor; sumBl+=d.baseline_mu;
+    });
+    const pct=sumBl>0?((sumDl-sumBl)/sumBl*100):0;
+    const cls=pct>10?'up':pct<-10?'dn':'nu';
+    const sign=pct>0?'+':'';
+    const rg_info=rg_meta[rg]||{};
+    return `<div class="rg-row">
+      <div class="rg-dot" style="background:${rg_info.cor||'#888'}"></div>
+      <span>${rg_info.nome?.split(' ')[0]||rg}</span>
+      <span class="rg-delta ${cls}">${sign}${pct.toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DÍGRAFO Δ
+// ═══════════════════════════════════════════════════════════════════════════
+function renderGraph() {
+  const svg=d3.select('#graph-svg');
+  svg.selectAll('*').remove();
+  const W=document.getElementById('view-graph').clientWidth||700;
+  const H=document.getElementById('center-panel').clientHeight||480;
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const {hora}=getHoraEvento();
+  const rg_meta=TENSOR.rg_metadata;
+  const combosAct=getActiveCombos();
+  const rg_ids=getRGsFromCombos(combosAct);
+
+  // Calcular volume e delta por RG (agregando RATs)
+  const rgData={};
+  rg_ids.forEach(rg=>{
+    const combos=combosAct.filter(k=>k.startsWith(rg+'_'));
+    let lv=0,bv=0,sigmaSum=0,n=0;
+    combos.forEach(key=>{
+      const d=getDeltaSigma(cidade,key,hora,curIndicador);
+      lv+=d.valor; bv+=d.baseline_mu;
+      sigmaSum+=Math.abs(d.sigma); n++;
+    });
+    const delta=bv>0?(lv-bv)/bv:0;
+    rgData[rg]={rg,lv,bv,delta,sigma:n>0?sigmaSum/n:0,...rg_meta[rg]};
+  });
+
+  // Construir arestas a partir da matriz de transição
+  const trans=TENSOR.transicao;
+  const transMatrix=curMoment==='base'?trans.baseline:trans.copa;
+  const rg_ids_t=trans.rg_ids||[];
+
+  const nodes=rg_ids.filter(r=>rgData[r]?.lv>0.01).filter(r => {
+    // Aplicar filtro de assinantes: excluir nós fora da faixa
+    if (nodeFilterMin === 0 && nodeFilterMax === 100) return true;
+    return passesNodeFilter(cidade, r, hora);
+  }).map(r=>({...rgData[r],idx:rg_ids_t.indexOf(r)||0,id:r}));
+  const nodeMap={};
+  nodes.forEach(n=>nodeMap[n.rg]=n);
+
+  const links=[];
+  nodes.forEach(src=>{
+    const si=rg_ids_t.indexOf(src.rg);
+    if(si<0) return;
+    nodes.forEach(dst=>{
+      const di=rg_ids_t.indexOf(dst.rg);
+      if(di<0||si===di) return;
+      const w=transMatrix?.[si]?.[di]||0;
+      if(w<2) return;
+      links.push({source:src,target:dst,w,srcRg:src.rg,concurrent:false});
+    });
+  });
+
+  // Concomitância
+  const concs=trans.concomitancia||[];
+  concs.forEach(c=>{
+    const a=nodeMap[c.rg_a],b=nodeMap[c.rg_b];
+    if(!a||!b) return;
+    const freq=curMoment==='base'?c.freq_baseline:c.freq_copa;
+    if(freq<3) return;
+    links.push({source:a,target:b,w:freq,srcRg:c.rg_a,concurrent:true});
+  });
+
+  const maxLV=Math.max(...nodes.map(n=>n.lv),0.1);
+  const maxW=Math.max(...links.map(l=>l.w),1);
+
+  // Grd
+  const grd=svg.append('g');
+  d3.range(0,H,44).forEach(y=>grd.append('line').attr('x1',0).attr('y1',y).attr('x2',W).attr('y2',y).attr('stroke','#0C1F14').attr('stroke-width',1));
+  d3.range(0,W,44).forEach(x=>grd.append('line').attr('x1',x).attr('y1',0).attr('x2',x).attr('y2',H).attr('stroke','#0C1F14').attr('stroke-width',1));
+
+  // Defs arrowheads
+  const defs=svg.append('defs');
+  Object.entries(rg_meta).forEach(([id,rm])=>{
+    defs.append('marker').attr('id',`arr-${id}`)
+      .attr('viewBox','0 -5 10 10').attr('refX',32).attr('refY',0)
+      .attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+      .append('path').attr('d','M0,-5L10,0L0,5').attr('fill',rm.cor||'#fff').attr('opacity',0.8);
+  });
+  defs.append('marker').attr('id','arr-conc')
+    .attr('viewBox','0 -5 10 10').attr('refX',32).attr('refY',0)
+    .attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+    .append('path').attr('d','M0,-5L10,0L0,5').attr('fill','#FFD700').attr('opacity',1);
+
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.rg).distance(d=>190-d.w*1.2).strength(0.35))
+    .force('charge',d3.forceManyBody().strength(-600))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide(70))
+    .force('x',d3.forceX(W/2).strength(0.02))
+    .force('y',d3.forceY(H/2).strength(0.02));
+
+  const edgeG=svg.append('g');
+  const edgePath=edgeG.selectAll('path').data(links).enter().append('path')
+    .attr('fill','none')
+    .attr('stroke',d=>d.concurrent?'#FFD700':(rg_meta[d.srcRg]?.cor||'#fff'))
+    .attr('stroke-width',d=>0.8+(d.w/maxW)*5)
+    .attr('stroke-opacity',d=>d.concurrent?0.9:0.6)
+    .attr('stroke-dasharray',d=>d.concurrent?'6,3':'none')
+    .attr('marker-end',d=>d.concurrent?'url(#arr-conc)':`url(#arr-${d.srcRg})`)
+    .on('mouseover',(ev,d)=>showTT(ev,`<div class="tt-t">${d.source.nome?.split(' ')[0]} → ${d.target.nome?.split(' ')[0]}</div>
+      Tipo: ${d.concurrent?'<b>Concomitante ‖</b>':'Sequencial →'}<br>
+      Freq: ${d.w.toFixed(0)}×/h · Peso: ${(d.w/maxW*100).toFixed(0)}%`))
+    .on('mousemove',moveTT).on('mouseout',hideTT);
+
+  const nodeG=svg.append('g');
+  const nodeEl=nodeG.selectAll('g').data(nodes).enter().append('g')
+    .attr('cursor','grab')
+    .call(d3.drag()
+      .on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag', (ev,d)=>{d.fx=ev.x;d.fy=ev.y;})
+      .on('end',  (ev,d)=>{if(!ev.active)sim.alphaTarget(0);})
+    )
+    .on('dblclick',(ev,d)=>{d.fx=null;d.fy=null;sim.alphaTarget(0.2).restart();setTimeout(()=>sim.alphaTarget(0),800);})
+    .on('mouseover',(ev,d)=>{
+      const pct=(d.delta*100).toFixed(0);
+      showTT(ev,`<div class="tt-t">${d.nome||d.rg}</div>
+        Vivo: ${d.lv.toFixed(2)} ${TENSOR.indicadores_display?.[curIndicador]?.unidade||''}<br>
+        Base: ${d.bv.toFixed(2)}<br>
+        Δ: <b>${pct>0?'+':''}${pct}%</b> · ${d.sigma.toFixed(1)}σ<br>
+        <span style="color:#9DB8A8;font-size:10px">Duplo-clique = soltar</span>`);
+    })
+    .on('mousemove',moveTT).on('mouseout',hideTT);
+
+  nodeEl.append('circle')
+    .attr('r',d=>22+(d.lv/maxLV)*20).attr('fill','none')
+    .attr('stroke',d=>d.delta>0.5?'#FF3D6B':d.delta<-0.3?'#00E57A':d.cor||'#fff')
+    .attr('stroke-width',d=>Math.abs(d.delta)>0.3?2:1)
+    .attr('stroke-opacity',d=>Math.abs(d.delta)>0.3?0.8:0.3)
+    .attr('stroke-dasharray',d=>Math.abs(d.delta)>0.5?'3,2':'none');
+
+  nodeEl.append('circle')
+    .attr('r',d=>17+(d.lv/maxLV)*17).attr('fill',d=>(d.cor||'#888')+'22')
+    .attr('stroke',d=>d.cor||'#888').attr('stroke-width',1.5);
+
+  nodeEl.append('circle')
+    .attr('r',d=>9+(d.lv/maxLV)*10).attr('fill',d=>(d.cor||'#888')+'55');
+
+  const lbl=nodeEl.append('text').attr('text-anchor','middle').attr('pointer-events','none');
+  lbl.append('tspan').text(d=>(d.nome||d.rg).split(' ')[0]).attr('x',0).attr('dy','-0.4em').attr('fill','#FFFFFF').attr('font-size','12px').attr('font-weight','700');
+  lbl.append('tspan').text(d=>(d.nome||d.rg).split(' ').slice(1).join(' ')||'').attr('x',0).attr('dy','1.15em').attr('fill','#FFFFFF').attr('font-size','12px').attr('font-weight','700');
+
+  nodeEl.append('text').attr('text-anchor','middle')
+    .attr('y',d=>30+(d.lv/maxLV)*18).attr('font-size','11px').attr('font-weight','800').attr('pointer-events','none')
+    .attr('fill',d=>d.delta>0.2?'#FF3D6B':d.delta<-0.2?'#00E57A':'#FFB300')
+    .text(d=>{const p=Math.round(d.delta*100);return p!==0?(p>0?`+${p}%`:`${p}%`):''});
+
+  const pinEl=nodeEl.append('text').attr('text-anchor','middle').attr('font-size','13px')
+    .attr('pointer-events','none').attr('opacity',0)
+    .attr('y',d=>-(24+(d.lv/maxLV)*20)-2).text('📌');
+
+  svg.append('text').attr('x',W/2).attr('y',18).attr('text-anchor','middle').attr('class','g-label')
+    .text(`${getCidadeMerged()?.nome||''} · RAT: ${curRat} · ${MOMENT_LABELS[curMoment]} · Δ ${curIndicador}`);
+
+  // Label de filtro ativo
+  if (nodeFilterMin > 0 || nodeFilterMax < 100) {
+    const fmtK = v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v.toFixed(0);
+    svg.append('text').attr('x',10).attr('y',18).attr('text-anchor','start')
+      .attr('font-size','10px').attr('fill','#FFB300').attr('font-weight','700')
+      .text(`⚑ Filtro: ${fmtK(nodeAssMin)}–${fmtK(nodeAssMax)} assin. · ${nodes.length} RGs visíveis`);
+  }
+
+  svg.append('text').attr('x',W-10).attr('y',H-10).attr('text-anchor','end').attr('class','g-label')
+    .text('Arrastar=fixar · Duplo-clique=soltar · ── Sequencial ╌╌ Concomitante');
+
+  sim.on('tick',()=>{
+    edgePath.attr('d',d=>{
+      if(!d.source.x) return '';
+      const dx=d.target.x-d.source.x,dy=d.target.y-d.source.y;
+      const dr=Math.sqrt(dx*dx+dy*dy)*(d.concurrent?0.55:0.75);
+      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,${d.concurrent?1:0} ${d.target.x},${d.target.y}`;
+    });
+    nodeEl.attr('transform',d=>`translate(${d.x||0},${d.y||0})`);
+    pinEl.attr('opacity',d=>d.fx!=null?1:0);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════
+function renderOverlay() {
+  const svg=d3.select('#overlay-svg');
+  svg.selectAll('*').remove();
+  const W=document.getElementById('view-overlay').clientWidth||700;
+  const H=document.getElementById('center-panel').clientHeight||480;
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const {hora}=getHoraEvento();
+  const rg_meta=TENSOR.rg_metadata;
+  const combosAct=getActiveCombos();
+  const rg_ids=getRGsFromCombos(combosAct);
+
+  const nodes=rg_ids.map(rg=>{
+    const combos=combosAct.filter(k=>k.startsWith(rg+'_'));
+    let lv=0,bv=0;
+    combos.forEach(key=>{const d=getDeltaSigma(cidade,key,hora,curIndicador);lv+=d.valor;bv+=d.baseline_mu;});
+    return {rg,lv,bv,delta:bv>0?(lv-bv)/bv:0,...rg_meta[rg]};
+  }).filter(n=>n.lv>0.01||n.bv>0.01);
+
+  const maxAll=Math.max(...nodes.map(n=>Math.max(n.lv,n.bv)),0.1);
+
+  // Links a partir da transição
+  const trans=TENSOR.transicao;
+  const rg_ids_t=trans.rg_ids||[];
+  const nodeMap={};
+  nodes.forEach(n=>nodeMap[n.rg]=n);
+  const links=[];
+  nodes.forEach(src=>{
+    const si=rg_ids_t.indexOf(src.rg);
+    if(si<0) return;
+    nodes.forEach(dst=>{
+      const di=rg_ids_t.indexOf(dst.rg);
+      if(di<0||si===di) return;
+      const w=(trans.copa?.[si]?.[di]||0)+(trans.baseline?.[si]?.[di]||0);
+      if(w>10) links.push({source:src,target:dst,w});
+    });
+  });
+
+  d3.range(0,H,44).forEach(y=>svg.append('line').attr('x1',0).attr('y1',y).attr('x2',W).attr('y2',y).attr('stroke','#0C1F14').attr('stroke-width',1));
+  d3.range(0,W,44).forEach(x=>svg.append('line').attr('x1',x).attr('y1',0).attr('x2',x).attr('y2',H).attr('stroke','#0C1F14').attr('stroke-width',1));
+
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.rg).distance(d=>160-(d.w||0)*0.8).strength(0.5))
+    .force('charge',d3.forceManyBody().strength(-500))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide(d=>16+Math.max(d.lv,d.bv)/maxAll*26+10))
+    .force('x',d3.forceX(W/2).strength(0.05))
+    .force('y',d3.forceY(H/2).strength(0.05));
+
+  const nodeEl=svg.append('g').selectAll('g').data(nodes).enter().append('g')
+    .on('mouseover',(ev,d)=>showTT(ev,`<div class="tt-t">${d.nome||d.rg}</div>Ao vivo: ${d.lv.toFixed(2)}<br>Baseline: ${d.bv.toFixed(2)}<br>Δ: ${(d.delta*100).toFixed(0)}%`))
+    .on('mousemove',moveTT).on('mouseout',hideTT);
+
+  nodeEl.append('circle').attr('r',d=>14+(d.bv/maxAll)*24)
+    .attr('fill','none').attr('stroke','#4A7A5A').attr('stroke-width',1.8).attr('stroke-dasharray','5,3').attr('opacity',0.7);
+  nodeEl.append('circle').attr('r',d=>14+(d.lv/maxAll)*24)
+    .attr('fill',d=>(d.cor||'#888')+'2A').attr('stroke',d=>d.cor||'#888').attr('stroke-width',2.5);
+  nodeEl.append('circle').attr('r',d=>8+(d.lv/maxAll)*12).attr('fill',d=>(d.cor||'#888')+'55');
+
+  const lbl=nodeEl.append('text').attr('text-anchor','middle').attr('pointer-events','none');
+  lbl.append('tspan').text(d=>(d.nome||d.rg).split(' ')[0]).attr('x',0).attr('dy','-0.3em').attr('fill','#FFFFFF').attr('font-size','12px').attr('font-weight','700');
+  lbl.append('tspan').text(d=>(d.nome||d.rg).split(' ').slice(1).join(' ')||'').attr('x',0).attr('dy','1.15em').attr('fill','#FFFFFF').attr('font-size','12px').attr('font-weight','700');
+
+  nodeEl.append('text').attr('text-anchor','middle').attr('font-size','11px').attr('font-weight','800').attr('pointer-events','none')
+    .attr('y',d=>22+Math.max(d.lv,d.bv)/maxAll*28)
+    .attr('fill',d=>d.delta>0.2?'#FF3D6B':d.delta<-0.2?'#00E57A':'#FFB300')
+    .text(d=>{const p=Math.round(d.delta*100);return p!==0?(p>0?`+${p}%`:`${p}%`):''});
+
+  svg.append('text').attr('x',W/2).attr('y',18).attr('text-anchor','middle').attr('class','g-label')
+    .text(`Sobreposição Baseline ╌╌ vs. ${MOMENT_LABELS[curMoment]} ── · ${getCidadeMerged()?.nome||''}`);
+  svg.append('text').attr('x',W-10).attr('y',H-10).attr('text-anchor','end').attr('class','g-label')
+    .text('Anel cinza = baseline · Anel colorido = ao vivo · Badge = Δ%');
+
+  sim.on('tick',()=>nodeEl.attr('transform',d=>`translate(${Math.max(60,Math.min(W-60,d.x||W/2))},${Math.max(60,Math.min(H-60,d.y||H/2))})`));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMELINE SWIMLANE — alimentada pelo tensor real
+// ═══════════════════════════════════════════════════════════════════════════
+function renderTimeline() {
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const rg_meta=TENSOR.rg_metadata;
+  const combosAct=getActiveCombos();
+  const rg_ids=getRGsFromCombos(combosAct);
+  const N_BASE=TENSOR.meta.n_baseline_dias;
+
+  // Para cada RG, calcular série horária de valor ao vivo e baseline médio
+  const hrs=['0h','4h','8h','12h','16h','20h','24h'];
+  let html=`<div class="tl-hours">${hrs.map(h=>`<span style="flex:1">${h}</span>`).join('')}</div>`;
+
+  rg_ids.forEach(rg=>{
+    const combos=combosAct.filter(k=>k.startsWith(rg+'_'));
+    if(combos.length===0) return;
+    const rgi=rg_meta[rg]||{};
+    const color=rgi.cor||'#888';
+
+    // Agregar por hora
+    const liveVals=Array(24).fill(0);
+    const baseVals=Array(24).fill(0);
+    for(let h=0;h<24;h++){
+      combos.forEach(key=>{
+        liveVals[h]+= cidade.evento_deltas?.[key]?.[h]?.[curIndicador]?.valor||0;
+        baseVals[h]+= cidade.baseline_stats?.[key]?.[h]?.[curIndicador]?.mu||0;
+      });
+    }
+    const maxV=Math.max(...liveVals,...baseVals,0.1);
+    if(maxV<0.001) return;
+
+    let segs='';
+    for(let h=0;h<24;h++){
+      const x=(h/24)*100, ww=(1/24)*100;
+      const lh=(liveVals[h]/maxV)*100;
+      const bh=(baseVals[h]/maxV)*100;
+      const isAnom=curMoment!=='base'&&liveVals[h]>baseVals[h]*1.5;
+      segs+=`<div class="tl-seg ${isAnom?'anomaly':''}" style="left:${x}%;width:${ww}%;background:${color};height:${lh}%;bottom:0;" title="${rgi.nome||rg} ${h}h: ${liveVals[h].toFixed(2)}"></div>`;
+      segs+=`<div class="tl-seg" style="left:${x}%;width:${ww}%;background:#4A7A5A;height:${bh}%;bottom:0;opacity:.3;"></div>`;
+    }
+    html+=`<div class="tl-row">
+      <div class="tl-lbl" style="color:${color}">${(rgi.nome||rg).split(' ')[0]}</div>
+      <div class="tl-track">${segs}</div>
+    </div>`;
+  });
+
+  html+=`<div style="margin-top:10px;font-size:10px;color:var(--muted)">
+    Colorido = ${MOMENT_LABELS[curMoment]} · Cinza = baseline · Brilho = anomalia > 1.5×baseline · Indicador: <b>${curIndicador}</b>
+  </div>`;
+  document.getElementById('tl-wrap').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SÉRIE DE ANOMALIA σ — calculada do tensor real
+// ═══════════════════════════════════════════════════════════════════════════
+function renderAnomalySeries() {
+  const svg=d3.select('#anom-svg');
+  svg.selectAll('*').remove();
+  const W=document.getElementById('view-anomaly').clientWidth||700;
+  const H=document.getElementById('center-panel').clientHeight||480;
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const combosAct=getActiveCombos();
+  const PAD={t:40,r:60,b:50,l:60};
+  const CW=W-PAD.l-PAD.r, CH=H-PAD.t-PAD.b;
+
+  // Calcular sigma médio por hora (média absoluta de todos combos ativos)
+  const sigmas=Array(24).fill(0);
+  const counts=Array(24).fill(0);
+  for(let h=0;h<24;h++){
+    combosAct.forEach(key=>{
+      const s=Math.abs(parseFloat(cidade.evento_deltas?.[key]?.[h]?.[curIndicador]?.sigma||0));
+      if(!isNaN(s)){sigmas[h]+=s;counts[h]++;}
+    });
+    if(counts[h]>0) sigmas[h]/=counts[h];
+  }
+
+  const serie=sigmas.map((s,h)=>({h,sigma:s}));
+  const maxS=Math.max(...sigmas,4.0);
+
+  const xSc=d3.scaleLinear().domain([0,23]).range([0,CW]);
+  const ySc=d3.scaleLinear().domain([0,maxS*1.1]).range([CH,0]);
+
+  const g=svg.append('g').attr('transform',`translate(${PAD.l},${PAD.t})`);
+
+  // Grid
+  [1,2,3,4,Math.ceil(maxS)].forEach(v=>{
+    g.append('line').attr('x1',0).attr('y1',ySc(v)).attr('x2',CW).attr('y2',ySc(v))
+      .attr('stroke','#1A3D24').attr('stroke-width',1).attr('stroke-dasharray',v>=3?'4,3':'2,4');
+    g.append('text').attr('x',-8).attr('y',ySc(v)+4).attr('text-anchor','end').attr('fill','#5A8A6A').attr('font-size','10px').text(`${v}σ`);
+  });
+
+  // Thresholds
+  [[2,'#FFB300','Atenção'],[3,'#FF8C00','Alerta']].forEach(([v,col,lbl])=>{
+    g.append('line').attr('x1',0).attr('y1',ySc(v)).attr('x2',CW).attr('y2',ySc(v))
+      .attr('stroke',col).attr('stroke-width',1).attr('stroke-dasharray','6,3').attr('opacity',.7);
+    g.append('text').attr('x',CW+4).attr('y',ySc(v)+4).attr('fill',col).attr('font-size','9px').text(lbl);
+  });
+
+  // Zona do jogo
+  const h0=TENSOR.meta.evento_hora_inicio||19,h1=TENSOR.meta.evento_hora_fim||22;
+  g.append('rect').attr('x',xSc(h0)).attr('y',0).attr('width',xSc(h1)-xSc(h0)).attr('height',CH)
+    .attr('fill','#FF3D6B').attr('opacity',.06);
+
+  // Marcador gol
+  const hg=TENSOR.meta.evento_hora_gol||21;
+  g.append('line').attr('x1',xSc(hg)).attr('y1',0).attr('x2',xSc(hg)).attr('y2',CH)
+    .attr('stroke','#FFD700').attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+  g.append('text').attr('x',xSc(hg)+4).attr('y',14).attr('fill','#FFD700').attr('font-size','10px').attr('font-weight','700').text(`⚽ Gol ${hg}h`);
+
+  // Curva
+  const area=d3.area().x(d=>xSc(d.h)).y0(CH).y1(d=>ySc(d.sigma)).curve(d3.curveCatmullRom);
+  const line=d3.line().x(d=>xSc(d.h)).y(d=>ySc(d.sigma)).curve(d3.curveCatmullRom);
+
+  const ag=svg.append('defs').append('linearGradient').attr('id','ag').attr('x1',0).attr('x2',0).attr('y1',0).attr('y2',1);
+  ag.append('stop').attr('offset','0%').attr('stop-color','#FF3D6B').attr('stop-opacity',.35);
+  ag.append('stop').attr('offset','100%').attr('stop-color','#FF3D6B').attr('stop-opacity',.02);
+
+  g.append('path').datum(serie).attr('d',area).attr('fill','url(#ag)');
+  g.append('path').datum(serie).attr('d',line).attr('fill','none').attr('stroke','#FF3D6B').attr('stroke-width',2);
+
+  g.selectAll('circle.dot').data(serie).enter().append('circle').attr('class','dot')
+    .attr('cx',d=>xSc(d.h)).attr('cy',d=>ySc(d.sigma)).attr('r',3.5)
+    .attr('fill',d=>d.sigma>=3?'#FF3D6B':d.sigma>=2?'#FF8C00':'#FFB300')
+    .attr('stroke','#071510').attr('stroke-width',1.5)
+    .on('mouseover',(ev,d)=>showTT(ev,`<div class="tt-t">${d.h}:00h</div>Anomalia: <b>${d.sigma.toFixed(2)}σ</b><br>${d.sigma>=4?'⚠ CRÍTICO':d.sigma>=3?'⚡ ALERTA':d.sigma>=2?'⚠ Atenção':'Normal'}<br>Indicador: ${curIndicador}`))
+    .on('mousemove',moveTT).on('mouseout',hideTT);
+
+  g.append('g').attr('transform',`translate(0,${CH})`).call(d3.axisBottom(xSc).ticks(12).tickFormat(d=>`${d}h`))
+    .selectAll('text').attr('fill','#5A8A6A').attr('font-size','10px');
+  g.selectAll('.domain,.tick line').attr('stroke','#1A3D24');
+
+  svg.append('text').attr('x',W/2).attr('y',PAD.t-12).attr('text-anchor','middle').attr('class','g-label')
+    .text(`Série de Anomalia σ — ${getCidadeMerged()?.nome||''} · ${curIndicador} · RAT: ${curRat}`);
+  svg.append('text').attr('x',PAD.l-48).attr('y',H/2).attr('text-anchor','middle')
+    .attr('transform',`rotate(-90,${PAD.l-48},${H/2})`).attr('fill','#5A8A6A').attr('font-size','10px').text('Desvio padrão (σ) vs. baseline');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4G vs 5G — comparativo de QoE e volume por RAT
+// ═══════════════════════════════════════════════════════════════════════════
+function renderRatView() {
+  const svg=d3.select('#rat-svg');
+  svg.selectAll('*').remove();
+  const W=document.getElementById('view-rat').clientWidth||700;
+  const H=document.getElementById('center-panel').clientHeight||480;
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+
+  const cidade=getCidadeMerged();
+  if(!cidade) return;
+  const rats=['4G','5G_NSA','5G_SA'];
+  const rat_meta=TENSOR.rat_metadata;
+  const rg_meta=TENSOR.rg_metadata;
+  const rg_ids=Object.keys(rg_meta);
+
+  // Para cada RAT, calcular QoE e volume ao vivo e baseline na hora atual
+  const {hora}=getHoraEvento();
+  const N_BASE=TENSOR.meta.n_baseline_dias;
+
+  const PAD={t:50,r:30,b:80,l:60};
+  const CW=W-PAD.l-PAD.r, CH=H-PAD.t-PAD.b;
+  const g=svg.append('g').attr('transform',`translate(${PAD.l},${PAD.t})`);
+
+  // Dois gráficos lado a lado: QoE e Volume
+  const half=CW/2-20;
+
+  ['qoe_score','vol_dl_gb'].forEach((ind,pi)=>{
+    const px=pi*(half+40);
+    const subG=g.append('g').attr('transform',`translate(${px},0)`);
+
+    const vals=rats.map(rat=>{
+      const combos=TENSOR.meta.combos.filter(k=>k.includes(rat.replace('_','')));
+      let live=0,base=0;
+      combos.forEach(key=>{
+        const d=getDeltaSigma(cidade,key,hora,ind);
+        live+=d.valor; base+=d.baseline_mu;
+      });
+      const n=combos.length||1;
+      return {rat, live:ind==='qoe_score'?live/n:live, base:ind==='qoe_score'?base/n:base};
+    });
+
+    const maxV=Math.max(...vals.map(v=>Math.max(v.live,v.base)),0.1);
+    const yS=d3.scaleLinear().domain([0,maxV*1.1]).range([CH,0]);
+    const xS=d3.scaleBand().domain(rats).range([0,half]).padding(0.3);
+
+    // Grid
+    [0.25,0.5,0.75,1].forEach(f=>{
+      const yv=maxV*f;
+      subG.append('line').attr('x1',0).attr('y1',yS(yv)).attr('x2',half).attr('y2',yS(yv)).attr('stroke','#1A3D24').attr('stroke-width',1).attr('stroke-dasharray','2,4');
+    });
+
+    // Barras baseline (cinza)
+    subG.selectAll('rect.base').data(vals).enter().append('rect')
+      .attr('x',d=>xS(d.rat)).attr('y',d=>yS(d.base))
+      .attr('width',xS.bandwidth()*0.45).attr('height',d=>Math.max(0,CH-yS(d.base)))
+      .attr('fill','#3A5A4A').attr('opacity',.7).attr('rx',2);
+
+    // Barras ao vivo (coloridas)
+    subG.selectAll('rect.live').data(vals).enter().append('rect')
+      .attr('x',d=>xS(d.rat)+xS.bandwidth()*0.48).attr('y',d=>yS(d.live))
+      .attr('width',xS.bandwidth()*0.45).attr('height',d=>Math.max(0,CH-yS(d.live)))
+      .attr('fill',d=>(rat_meta[d.rat]?.cor||'#888')).attr('rx',2)
+      .on('mouseover',(ev,d)=>showTT(ev,`<div class="tt-t">${rat_meta[d.rat]?.nome||d.rat}</div>${ind}<br>Ao vivo: ${d.live.toFixed(2)}<br>Baseline: ${d.base.toFixed(2)}<br>Δ: ${d.base>0?((d.live-d.base)/d.base*100).toFixed(0)+'%':'—'}`))
+      .on('mousemove',moveTT).on('mouseout',hideTT);
+
+    // Labels delta %
+    subG.selectAll('text.dlbl').data(vals).enter().append('text').attr('class','dlbl')
+      .attr('x',d=>xS(d.rat)+xS.bandwidth()/2).attr('y',d=>yS(Math.max(d.live,d.base))-6)
+      .attr('text-anchor','middle').attr('font-size','10px').attr('font-weight','800')
+      .attr('fill',d=>d.live>d.base?'#FF3D6B':'#00E57A')
+      .text(d=>{const p=d.base>0?((d.live-d.base)/d.base*100):0;return (p>0?'+':'')+p.toFixed(0)+'%';});
+
+    // Labels RAT
+    subG.selectAll('text.xlabel').data(vals).enter().append('text').attr('class','xlabel')
+      .attr('x',d=>xS(d.rat)+xS.bandwidth()/2).attr('y',CH+18)
+      .attr('text-anchor','middle').attr('font-size','11px').attr('font-weight','700')
+      .attr('fill',d=>rat_meta[d.rat]?.cor||'#888')
+      .text(d=>rat_meta[d.rat]?.nome||d.rat);
+
+    // Título
+    subG.append('text').attr('x',half/2).attr('y',-15).attr('text-anchor','middle')
+      .attr('fill','#FFB300').attr('font-size','12px').attr('font-weight','700')
+      .text(ind==='qoe_score'?'QoE Score (0–100)':'Volume DL (GB/h)');
+
+    // Y axis
+    subG.append('g').call(d3.axisLeft(yS).ticks(5))
+      .selectAll('text').attr('fill','#5A8A6A').attr('font-size','9px');
+    subG.selectAll('.domain,.tick line').attr('stroke','#1A3D24');
+  });
+
+  // Legenda
+  g.append('rect').attr('x',half/2-40).attr('y',CH+40).attr('width',14).attr('height',10).attr('fill','#3A5A4A').attr('rx',1);
+  g.append('text').attr('x',half/2-22).attr('y',CH+49).attr('fill','#9DB8A8').attr('font-size','10px').text('Baseline');
+  g.append('rect').attr('x',half/2+30).attr('y',CH+40).attr('width',14).attr('height',10).attr('fill','#4ECDC4').attr('rx',1);
+  g.append('text').attr('x',half/2+48).attr('y',CH+49).attr('fill','#9DB8A8').attr('font-size','10px').text(MOMENT_LABELS[curMoment]);
+
+  svg.append('text').attr('x',W/2).attr('y',30).attr('text-anchor','middle').attr('class','g-label')
+    .text(`Comparativo 4G vs 5G NSA vs 5G SA · ${getCidadeMerged()?.nome||''} · ${MOMENT_LABELS[curMoment]} · hora ${hora}h`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RIGHT PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+function renderRight() {
+  const el=document.getElementById('rcontent');
+  const cidade=getCidadeMerged();
+  if(!cidade){el.innerHTML='<p style="color:var(--muted);padding:20px">Selecione uma cidade</p>';return;}
+  const {hora}=getHoraEvento();
+
+  if(curRTab==='insights') {
+    const sigma=parseFloat(getGlobalSigma(cidade));
+    const d01=getDeltaSigma(cidade,'RG01_4G',hora,'vol_dl_gb');
+    const d02=getDeltaSigma(cidade,'RG02_4G',hora,'vol_dl_gb');
+    const d03=getDeltaSigma(cidade,'RG03_4G',hora,'vol_dl_gb');
+    const dQ4=getDeltaSigma(cidade,'RG01_4G',hora,'qoe_score');
+    const dQ5=getDeltaSigma(cidade,'RG01_5GSA'||'RG01_5G_SA',hora,'qoe_score');
+
+    const insights=[
+      {t:sigma>=3.5?'red':sigma>=2?'':'green',lb:'Anomalia Atual',
+       ti:`Dígrafo em ${sigma>=3.5?'estado crítico':sigma>=2?'alerta':'estado normal'}: ${sigma}σ`,
+       b:`<strong>RG01 (Streaming) ${d01.delta_pct>0?'+':''}${parseFloat(d01.delta_pct).toFixed(0)}%</strong> · <strong>RG02 (Social) ${d02.delta_pct>0?'+':''}${parseFloat(d02.delta_pct).toFixed(0)}%</strong>. Gaming: ${parseFloat(d03.delta_pct).toFixed(0)}%.`},
+      {t:'blue',lb:'4G vs 5G SA',
+       ti:'Diferença de QoE por RAT durante evento',
+       b:`QoE 4G: <strong>${dQ4.valor?.toFixed(1)||'—'}</strong> (Δ ${parseFloat(dQ4.delta_pct).toFixed(0)}%) · 5G SA mantém qualidade superior durante congestionamento.`},
+      {t:'gold',lb:'Oportunidade Comercial',
+       ti:`${d01.delta_pct>100?'Bundle StreamSocial Copa ativo':'Monitorar — evento ainda incipiente'}`,
+       b:`Streaming +${parseFloat(d01.delta_pct).toFixed(0)}% sobre baseline. ${d01.delta_pct>100?'Janela ideal para push de plano Copa.':'Aguardar pico do jogo.'}` },
+      {t:'purple',lb:'Tensor CDRView',
+       ti:'Dados reais do pipeline',
+       b:`${TENSOR.meta.n_baseline_dias} dias de baseline · ${Object.keys(TENSOR.cidades).length} cidades · ${TENSOR.meta.combos.length} combos RG×RAT · Indicador: <strong>${curIndicador}</strong>`},
+    ];
+    el.innerHTML=insights.map(i=>`<div class="icard ${i.t}"><div class="ic-label">${i.lb}</div><div class="ic-title">${i.ti}</div><div class="ic-body">${i.b}</div></div>`).join('');
+
+  } else if(curRTab==='tensor') {
+    const combosAct=getActiveCombos().slice(0,12);
+    const rows=combosAct.map(key=>{
+      const d=getDeltaSigma(cidade,key,hora,curIndicador);
+      const pct=parseFloat(d.delta_pct).toFixed(0);
+      const col=pct>20?'var(--red)':pct<-20?'var(--green)':'var(--highlight)';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+        <span style="flex:1;color:#fff;font-weight:600">${key}</span>
+        <span style="color:var(--muted)">${d.valor?.toFixed(2)||'—'}</span>
+        <span style="font-weight:800;color:${col}">${pct>0?'+':''}${pct}%</span>
+        <span style="color:var(--muted);font-size:10px">${parseFloat(d.sigma).toFixed(1)}σ</span>
+      </div>`;
+    }).join('');
+    el.innerHTML=`<div style="font-size:10px;color:var(--highlight);font-weight:700;text-transform:uppercase;margin-bottom:8px">${curIndicador} · hora ${hora}h · ${MOMENT_LABELS[curMoment]}</div>${rows}`;
+
+  } else {
+    const rat_meta=TENSOR.rat_metadata;
+    el.innerHTML=`
+      <div class="icard blue"><div class="ic-label">Betweenness · Tensor</div><div class="ic-title">Nó hub derivado do tensor real</div><div class="ic-body">Calculado a partir dos pesos de transição da matriz CDRView — RG01 (Streaming) domina em evento.</div></div>
+      <div class="icard"><div class="ic-label">QoE por RAT</div><div class="ic-title">Impacto Copa por tecnologia</div>
+        <div class="ic-body">
+          ${Object.entries(rat_meta).map(([id,rm])=>`<strong style="color:${rm.cor}">${rm.nome||id}:</strong> ${((1-rm.qoe_degradacao_copa)*100).toFixed(0)}% do QoE mantido durante evento<br>`).join('')}
+        </div>
+      </div>
+      <div class="icard purple"><div class="ic-label">Tensor 3D</div><div class="ic-title">[combo × dia × hora] × indicador</div>
+        <div class="ic-body"><strong>${TENSOR.meta.combos.length}</strong> combos RG×RAT · <strong>${TENSOR.meta.n_baseline_dias+1}</strong> dias · <strong>24</strong> horas · <strong>${TENSOR.meta.indicadores.length}</strong> indicadores</div>
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIMULAÇÃO
+// ═══════════════════════════════════════════════════════════════════════════
+const SIM_PHASES=[
+  {m:'base', t:'Baseline',        score:'— — —', lbl:'BASELINE'},
+  {m:'pre',  t:'Pré-jogo (18h)', score:'0 — 0', lbl:'PRÉ-JOGO'},
+  {m:'live', t:'Ao vivo (21h)',  score:'1 — 0', lbl:'AO VIVO'},
+  {m:'post', t:'Pós-gol (22h)', score:'2 — 0', lbl:'PÓS-GOL'},
+  {m:'live', t:'Retomada (75\')',score:'2 — 1', lbl:'AO VIVO'},
+];
+
+function toggleSim() {
+  const btn=document.getElementById('sim-btn');
+  if(simRunning){ clearInterval(simTimer); simRunning=false; btn.textContent='⏵ Simular jogo'; btn.classList.remove('running'); return; }
+  simRunning=true; simPhase=0; btn.textContent='⏹ Parar'; btn.classList.add('running');
+  runSimStep(); simTimer=setInterval(runSimStep,2800);
+}
+
+function runSimStep() {
+  if(simPhase>=SIM_PHASES.length){ clearInterval(simTimer); simRunning=false;
+    document.getElementById('sim-btn').textContent='⏵ Simular jogo';
+    document.getElementById('sim-btn').classList.remove('running'); return; }
+  const ph=SIM_PHASES[simPhase];
+  curMoment=ph.m;
+  document.getElementById('hero-score').textContent=ph.score;
+  document.getElementById('hero-time').textContent=`${ph.t} · ${TENSOR.meta.evento_nome||'Copa 2026'}`;
+  document.getElementById('hero-mode-lbl').textContent=ph.lbl;
+  computeNodeAssRange();
+  updateHeroChips(); renderKpis(); renderRGLegend(); refreshView(); renderRight();
+  simPhase++;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTROLES
+// ═══════════════════════════════════════════════════════════════════════════
+function setView(v,btn) {
+  curView=v;
+  const vnames=['Dígrafo Δ','Sobreposição','Timeline','Série σ','4G vs 5G'];
+  document.querySelectorAll('.tb-btn').forEach(b=>{ if(vnames.includes(b.textContent.trim())) b.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  refreshView();
+}
+
+function refreshView() {
+  if(curView==='graph')    renderGraph();
+  else if(curView==='overlay')  renderOverlay();
+  else if(curView==='timeline') renderTimeline();
+  else if(curView==='anomaly')  renderAnomalySeries();
+  else if(curView==='rat')      renderRatView();
+}
+
+function onCidadeChange() {
+  const sel=document.getElementById('cidade-sel');
+  const selected=[...sel.options].filter(o=>o.selected).map(o=>o.value);
+  curCidades=selected.length>0?selected:[sel.options[0]?.value];
+  computeNodeAssRange();
+  updateHeroChips(); renderKpis(); renderRGLegend(); refreshView(); renderRight();
+}
+
+function setMoment(m,btn) {
+  curMoment=m;
+  document.querySelectorAll('.tb-btn.m-base,.tb-btn.m-pre,.tb-btn.m-live,.tb-btn.m-post').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  computeNodeAssRange();
+  updateHeroChips(); renderKpis(); renderRGLegend(); refreshView(); renderRight();
+}
+
+function setIndicador(v) {
+  curIndicador=v;
+  refreshView(); renderRGLegend(); renderKpis(); renderRight();
+}
+
+function setRTab(el,tab) {
+  curRTab=tab;
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderRight();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════════════════════════════════════════
+function showTT(ev,html){const t=document.getElementById('tt');t.innerHTML=html;t.style.display='block';moveTT(ev);}
+function moveTT(ev){const t=document.getElementById('tt');t.style.left=(ev.clientX+12)+'px';t.style.top=(ev.clientY-8)+'px';}
+function hideTT(){document.getElementById('tt').style.display='none';}
+
+window.addEventListener('resize',()=>{renderPulseBar();setTimeout(refreshView,100);});
+</script>
+</body>
+</html>
