@@ -403,6 +403,90 @@ let simRunning = false;
 let simTimer = null;
 let simPhase = 0;
 
+// ── Tabela oficial CN → Praça (DDD ANATEL) ────────────────────────────────
+// Sobrescreve qualquer nome que venha do JSON (que pode ter rótulos sintéticos)
+const CN_PRACA = {
+  "CN11":{"nome":"São Paulo Capital",     "uf":"SP"},
+  "CN12":{"nome":"São J. Campos",         "uf":"SP"},
+  "CN13":{"nome":"Santos",                "uf":"SP"},
+  "CN14":{"nome":"Bauru",                 "uf":"SP"},
+  "CN15":{"nome":"Sorocaba",              "uf":"SP"},
+  "CN16":{"nome":"Ribeirão Preto",        "uf":"SP"},
+  "CN17":{"nome":"S.J. Rio Preto",        "uf":"SP"},
+  "CN18":{"nome":"Pres. Prudente",        "uf":"SP"},
+  "CN19":{"nome":"Campinas",              "uf":"SP"},
+  "CN21":{"nome":"Rio de Janeiro",        "uf":"RJ"},
+  "CN22":{"nome":"Campos",                "uf":"RJ"},
+  "CN24":{"nome":"Volta Redonda",         "uf":"RJ"},
+  "CN27":{"nome":"Vitória",               "uf":"ES"},
+  "CN28":{"nome":"Cachoeiro",             "uf":"ES"},
+  "CN31":{"nome":"Belo Horizonte",        "uf":"MG"},
+  "CN32":{"nome":"Juiz de Fora",          "uf":"MG"},
+  "CN33":{"nome":"Gov. Valadares",        "uf":"MG"},
+  "CN34":{"nome":"Uberlândia",            "uf":"MG"},
+  "CN35":{"nome":"Poços de Caldas",       "uf":"MG"},
+  "CN37":{"nome":"Divinópolis",           "uf":"MG"},
+  "CN38":{"nome":"Montes Claros",         "uf":"MG"},
+  "CN41":{"nome":"Curitiba",              "uf":"PR"},
+  "CN42":{"nome":"Ponta Grossa",          "uf":"PR"},
+  "CN43":{"nome":"Londrina",              "uf":"PR"},
+  "CN44":{"nome":"Maringá",               "uf":"PR"},
+  "CN45":{"nome":"Foz do Iguaçu",         "uf":"PR"},
+  "CN46":{"nome":"Francisco Beltrão",     "uf":"PR"},
+  "CN47":{"nome":"Joinville",             "uf":"SC"},
+  "CN48":{"nome":"Florianópolis",         "uf":"SC"},
+  "CN49":{"nome":"Chapecó",               "uf":"SC"},
+  "CN51":{"nome":"Porto Alegre",          "uf":"RS"},
+  "CN53":{"nome":"Pelotas",               "uf":"RS"},
+  "CN54":{"nome":"Caxias do Sul",         "uf":"RS"},
+  "CN55":{"nome":"Santa Maria",           "uf":"RS"},
+  "CN61":{"nome":"Brasília",              "uf":"DF"},
+  "CN62":{"nome":"Goiânia",               "uf":"GO"},
+  "CN63":{"nome":"Palmas",                "uf":"TO"},
+  "CN64":{"nome":"Rio Verde",             "uf":"GO"},
+  "CN65":{"nome":"Cuiabá",                "uf":"MT"},
+  "CN66":{"nome":"Rondonópolis",          "uf":"MT"},
+  "CN67":{"nome":"Campo Grande",          "uf":"MS"},
+  "CN68":{"nome":"Rio Branco",            "uf":"AC"},
+  "CN69":{"nome":"Porto Velho",           "uf":"RO"},
+  "CN71":{"nome":"Salvador",              "uf":"BA"},
+  "CN73":{"nome":"Ilhéus",                "uf":"BA"},
+  "CN74":{"nome":"Juazeiro",              "uf":"BA"},
+  "CN75":{"nome":"Feira de Santana",      "uf":"BA"},
+  "CN77":{"nome":"Vitória da Conquista",  "uf":"BA"},
+  "CN79":{"nome":"Aracaju",               "uf":"SE"},
+  "CN81":{"nome":"Recife",                "uf":"PE"},
+  "CN82":{"nome":"Maceió",                "uf":"AL"},
+  "CN83":{"nome":"João Pessoa",           "uf":"PB"},
+  "CN84":{"nome":"Natal",                 "uf":"RN"},
+  "CN85":{"nome":"Fortaleza",             "uf":"CE"},
+  "CN86":{"nome":"Teresina",              "uf":"PI"},
+  "CN87":{"nome":"Caruaru",               "uf":"PE"},
+  "CN88":{"nome":"Juazeiro do Norte",     "uf":"CE"},
+  "CN89":{"nome":"Picos",                 "uf":"PI"},
+  "CN91":{"nome":"Belém",                 "uf":"PA"},
+  "CN92":{"nome":"Manaus",                "uf":"AM"},
+  "CN93":{"nome":"Santarém",              "uf":"PA"},
+  "CN94":{"nome":"Marabá",                "uf":"PA"},
+  "CN95":{"nome":"Boa Vista",             "uf":"RR"},
+  "CN96":{"nome":"Macapá",                "uf":"AP"},
+  "CN97":{"nome":"Coari",                 "uf":"AM"},
+  "CN98":{"nome":"São Luís",              "uf":"MA"},
+  "CN99":{"nome":"Imperatriz",            "uf":"MA"},
+};
+
+// Aplica nomes corretos sobre o JSON carregado
+function fixCNNames(tensor) {
+  if (!tensor || !tensor.cidades) return tensor;
+  Object.keys(tensor.cidades).forEach(cnKey => {
+    const oficial = CN_PRACA[cnKey];
+    if (oficial) {
+      tensor.cidades[cnKey].nome = `${cnKey} — ${oficial.nome}`;
+      tensor.cidades[cnKey].uf   = oficial.uf;
+    }
+  });
+  return tensor;
+}
 // ── Filtro de nós por assinantes ──────────────────────────────────────────
 let nodeFilterMin = 0;      // percentil 0–100 do slider mínimo
 let nodeFilterMax = 100;    // percentil 0–100 do slider máximo
@@ -410,9 +494,9 @@ let nodeAssMin = 0;         // valor absoluto de assinantes mínimo
 let nodeAssMax = Infinity;  // valor absoluto de assinantes máximo
 let nodeAssRange = [0, 0];  // [min global, max global] calculado ao carregar
 
-// Hora de referência por momento
-const MOMENT_HORA = { base:20, pre:18, live:21, post:22 };
-const MOMENT_LABELS = { base:'Baseline', pre:'Pré-jogo (18h)', live:'Ao vivo (21h)', post:'Pós-gol (22h)' };
+// Hora de referência por momento — recalculados em initApp() a partir do meta do JSON
+let MOMENT_HORA   = { base:20, pre:18, live:21, post:22 };
+let MOMENT_LABELS = { base:'Baseline', pre:'Pré-jogo (18h)', live:'Ao vivo (21h)', post:'Pós-gol (22h)' };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LOAD
@@ -425,7 +509,7 @@ document.getElementById('file-input').addEventListener('change', e => {
   reader.onload = ev => {
     loadProgress(40, 'Parseando JSON...');
     try {
-      TENSOR = JSON.parse(ev.target.result);
+      TENSOR = fixCNNames(JSON.parse(ev.target.result));
       loadProgress(80, 'Inicializando aplicação...');
       setTimeout(() => initApp(), 200);
     } catch(err) {
@@ -677,6 +761,28 @@ function initApp() {
     document.getElementById('toolbar').style.display='flex';
     document.getElementById('main-area').style.display='flex';
   }, 300);
+
+  // Atualizar MOMENT_HORA a partir do meta do JSON (se disponível)
+  if (TENSOR.meta) {
+    const hi = TENSOR.meta.evento_hora_inicio || 19;
+    const hf = TENSOR.meta.evento_hora_fim    || 22;
+    const hg = TENSOR.meta.evento_hora_gol    || 21;
+    const hb = Math.min(12, hi - 1);
+    MOMENT_HORA   = { base: hb, pre: hi, live: hi+1, post: hg };
+    MOMENT_LABELS = {
+      base: `Baseline (${hb}h)`,
+      pre:  `Pré-jogo (${hi}h)`,
+      live: `Ao vivo (${hi+1}h)`,
+      post: `Pós-gol (${hg}h)`,
+    };
+    // Atualizar título hero
+    const nomeEvento = TENSOR.meta.evento_nome || 'Copa 2026';
+    const placar     = TENSOR.meta.evento_placar || '';
+    document.getElementById('hero-teams').textContent = nomeEvento;
+    if (placar) document.getElementById('hero-score').textContent = placar;
+    document.getElementById('hero-time').textContent =
+      `${TENSOR.meta.evento_data||''} · ${nomeEvento}`;
+  }
 
   // Popular seletor de cidades
   const sel = document.getElementById('cidade-sel');
@@ -1111,25 +1217,38 @@ function renderRGLegend() {
   const el=document.getElementById('rg-legend');
   const rg_ids=Object.keys(rg_meta);
 
-  el.innerHTML=rg_ids.map(rg=>{
-    // Soma delta_pct sobre RATs ativos para este RG
+  // Agregar grupos de serviço na legenda
+  const GRUPOS_LEG = { 'YouTube': { rgs:['RG755','RG842'], cor:'#FF0000' } };
+  const rgs_agrupados = new Set(Object.values(GRUPOS_LEG).flatMap(g=>g.rgs));
+
+  // Itens individuais (não agrupados)
+  const itens_ind = rg_ids.filter(rg => !rgs_agrupados.has(rg)).map(rg => {
     const combos=getActiveCombos().filter(k=>k.startsWith(rg+'_'));
     if(combos.length===0) return '';
     let sumDl=0,sumBl=0;
-    combos.forEach(key=>{
-      const d=getDeltaSigma(cidade,key,hora,'vol_dl_gb');
-      sumDl+=d.valor; sumBl+=d.baseline_mu;
-    });
+    combos.forEach(key=>{ const d=getDeltaSigma(cidade,key,hora,'vol_dl_gb'); sumDl+=d.valor; sumBl+=d.baseline_mu; });
     const pct=sumBl>0?((sumDl-sumBl)/sumBl*100):0;
     const cls=pct>10?'up':pct<-10?'dn':'nu';
     const sign=pct>0?'+':'';
     const rg_info=rg_meta[rg]||{};
-    return `<div class="rg-row">
-      <div class="rg-dot" style="background:${rg_info.cor||'#888'}"></div>
-      <span>${rg_info.nome?.split(' ')[0]||rg}</span>
-      <span class="rg-delta ${cls}">${sign}${pct.toFixed(0)}%</span>
-    </div>`;
-  }).join('');
+    return `<div class="rg-row"><div class="rg-dot" style="background:${rg_info.cor||'#888'}"></div><span>${rg_info.nome?.split(' ')[0]||rg}</span><span class="rg-delta ${cls}">${sign}${pct.toFixed(0)}%</span></div>`;
+  });
+
+  // Itens de grupo
+  const itens_grp = Object.entries(GRUPOS_LEG).map(([nome, cfg]) => {
+    let sumDl=0,sumBl=0;
+    cfg.rgs.forEach(rg => {
+      getActiveCombos().filter(k=>k.startsWith(rg+'_')).forEach(key => {
+        const d=getDeltaSigma(cidade,key,hora,'vol_dl_gb'); sumDl+=d.valor; sumBl+=d.baseline_mu;
+      });
+    });
+    const pct=sumBl>0?((sumDl-sumBl)/sumBl*100):0;
+    const cls=pct>10?'up':pct<-10?'dn':'nu';
+    const sign=pct>0?'+':'';
+    return `<div class="rg-row"><div class="rg-dot" style="background:${cfg.cor}"></div><span>${nome}</span><span class="rg-delta ${cls}">${sign}${pct.toFixed(0)}%</span></div>`;
+  });
+
+  el.innerHTML=[...itens_grp, ...itens_ind].join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1163,16 +1282,55 @@ function renderGraph() {
     rgData[rg]={rg,lv,bv,delta,sigma:n>0?sigmaSum/n:0,...rg_meta[rg]};
   });
 
+  // ── Agregação de grupos de serviço ───────────────────────────────────────
+  // RG755 + RG842 → nó único "YouTube"
+  const GRUPOS_SERVICO = {
+    'YouTube': { rgs: ['RG755','RG842'], cor: '#FF0000' },
+  };
+
+  Object.entries(GRUPOS_SERVICO).forEach(([nomeGrupo, cfg]) => {
+    const membros = cfg.rgs.filter(rg => rgData[rg]);
+    if (membros.length < 2) return; // nada a agregar
+
+    // Somar volumes de todos os membros
+    let lv = 0, bv = 0, sigmaSum = 0, n = 0;
+    membros.forEach(rg => {
+      lv += rgData[rg].lv;
+      bv += rgData[rg].bv;
+      sigmaSum += rgData[rg].sigma;
+      n++;
+    });
+    const delta = bv > 0 ? (lv - bv) / bv : 0;
+
+    // Criar nó do grupo no lugar do primeiro membro
+    const idGrupo = 'GRP_' + nomeGrupo.replace(/[^A-Za-z0-9]/g,'_');
+    rgData[idGrupo] = {
+      rg: idGrupo,
+      lv, bv, delta,
+      sigma: n > 0 ? sigmaSum / n : 0,
+      nome: nomeGrupo,
+      cor: cfg.cor,
+      grupo_servico: true,
+      membros: membros,
+    };
+
+    // Remover membros individuais
+    membros.forEach(rg => delete rgData[rg]);
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Construir arestas a partir da matriz de transição
   const trans=TENSOR.transicao;
   const transMatrix=curMoment==='base'?trans.baseline:trans.copa;
   const rg_ids_t=trans.rg_ids||[];
 
-  const nodes=rg_ids.filter(r=>rgData[r]?.lv>0.01).filter(r => {
+  const nodes=Object.values(rgData).filter(d=>d.lv>0.01).filter(d => {
     // Aplicar filtro de assinantes: excluir nós fora da faixa
     if (nodeFilterMin === 0 && nodeFilterMax === 100) return true;
-    return passesNodeFilter(cidade, r, hora);
-  }).map(r=>({...rgData[r],idx:rg_ids_t.indexOf(r)||0,id:r}));
+    // Nós de grupo passam sempre (não têm assinantes individuais para filtrar)
+    if (d.grupo_servico) return true;
+    return passesNodeFilter(cidade, d.rg, hora);
+  }).map(d=>({...d,idx:rg_ids_t.indexOf(d.rg)||0,id:d.rg}));
   const nodeMap={};
   nodes.forEach(n=>nodeMap[n.rg]=n);
 
